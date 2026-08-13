@@ -347,18 +347,28 @@ function renderData() {
 function mount() {
     if (document.querySelector('#worldinfo-plus-root')) return;
 
+    const worldInfoPanel = document.querySelector('#WorldInfo');
+    if (!worldInfoPanel) {
+        setTimeout(mount, 500);
+        return;
+    }
+
     root = createElement('div', 'wip-root');
     root.id = 'worldinfo-plus-root';
     root.append(renderToolbar(), createElement('div', 'wip-folder-list'));
 
-    const anchor = document.querySelector('#world_editor_select')?.closest('.range-block') || document.querySelector('#WorldInfo');
+    const editorSelect = document.querySelector('#world_editor_select');
+    const anchor = editorSelect && worldInfoPanel.contains(editorSelect)
+        ? editorSelect.closest('.range-block')
+        : null;
+
     if (anchor) {
         anchor.insertAdjacentElement('afterend', root);
     } else {
-        document.body.append(root);
+        worldInfoPanel.prepend(root);
     }
 
-    document.querySelector('#world_editor_select')?.addEventListener('change', loadSelectedBook);
+    editorSelect?.addEventListener('change', loadSelectedBook);
     loadSelectedBook();
 }
 
