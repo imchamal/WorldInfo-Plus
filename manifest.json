@@ -1,0 +1,9 @@
+{
+  "display_name": "WorldInfo Plus",
+  "loading_order": 99,
+  "js": "index.js",
+  "css": "style.css",
+  "author": "WorldInfo Plus",
+  "version": "0.1.0",
+  "auto_update": false
+}

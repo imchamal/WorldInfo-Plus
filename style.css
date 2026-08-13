@@ -1,0 +1,142 @@
+.wip-root {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 10px 0;
+}
+
+.wip-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    background: var(--SmartThemeBlurTintColor);
+}
+
+.wip-title {
+    font-weight: 700;
+}
+
+.wip-status {
+    flex: 1;
+    opacity: 0.75;
+    font-size: 0.9em;
+}
+
+.wip-button,
+.wip-icon-button,
+.wip-folder-toggle,
+.wip-folder-name {
+    cursor: pointer;
+}
+
+.wip-folder-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.wip-folder-card {
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--SmartThemeBlurTintColor);
+}
+
+.wip-folder-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 6px 8px;
+}
+
+.wip-folder-handle,
+.wip-entry-handle {
+    width: 22px;
+    text-align: center;
+    cursor: grab;
+    opacity: 0.75;
+    user-select: none;
+}
+
+.wip-folder-toggle {
+    width: 26px;
+    border: 0;
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+}
+
+.wip-folder-name {
+    flex: 1;
+    overflow: hidden;
+    border: 0;
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wip-folder-count {
+    min-width: 2em;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: var(--black30a);
+    text-align: center;
+    font-size: 0.85em;
+}
+
+.wip-entry-list {
+    display: flex;
+    min-height: 12px;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 8px 8px;
+}
+
+.wip-entry-card {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 6px 8px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    background: var(--black30a);
+    color: var(--SmartThemeBodyColor);
+}
+
+.wip-entry-content {
+    min-width: 0;
+    flex: 1;
+}
+
+.wip-entry-title,
+.wip-entry-keys {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wip-entry-title {
+    font-weight: 600;
+}
+
+.wip-entry-keys {
+    opacity: 0.75;
+    font-size: 0.85em;
+}
+
+.wip-entry-placeholder {
+    min-height: 42px;
+    border: 1px dashed var(--SmartThemeBorderColor);
+    border-radius: 8px;
+}
+
+.wip-empty {
+    padding: 10px;
+    opacity: 0.75;
+}
