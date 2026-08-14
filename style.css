@@ -32,6 +32,12 @@
     padding: 6px 8px;
 }
 
+.wip-folder-drop-hover {
+    background: var(--black30a);
+    outline: 1px dashed var(--SmartThemeBorderColor);
+    outline-offset: -3px;
+}
+
 .wip-folder-handle,
 .wip-entry-handle {
     width: 22px;
@@ -101,17 +107,16 @@
     position: fixed;
     z-index: 50000;
     inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
     background: rgba(0, 0, 0, 0.45);
 }
 
 .wip-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
     display: flex;
-    width: min(640px, 100%);
-    max-height: min(720px, 90vh);
+    width: min(640px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
     flex-direction: column;
     gap: 10px;
     padding: 12px;
@@ -120,6 +125,7 @@
     background: var(--SmartThemeBlurTintColor);
     color: var(--SmartThemeBodyColor);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    transform: translate(-50%, -50%);
 }
 
 .wip-dialog-title {
@@ -135,14 +141,25 @@
     font-size: 0.9em;
 }
 
-.wip-dialog-actions,
+.wip-dialog-select-row,
 .wip-dialog-footer {
     display: flex;
+    align-items: center;
     gap: 8px;
+}
+
+.wip-dialog-select-row {
+    align-self: flex-start;
+    cursor: pointer;
 }
 
 .wip-dialog-footer {
     justify-content: flex-end;
+}
+
+.wip-dialog-footer .menu_button {
+    min-width: 52px;
+    white-space: nowrap;
 }
 
 .wip-dialog-entry-list {

@@ -41,6 +41,7 @@ function ensureStore(data) {
     store.folderOrder = Array.isArray(store.folderOrder) ? store.folderOrder : [];
     store.entryFolders = store.entryFolders && typeof store.entryFolders === 'object' ? store.entryFolders : {};
     store.entryOrder = store.entryOrder && typeof store.entryOrder === 'object' ? store.entryOrder : {};
+    store.unfiledCollapsed = typeof store.unfiledCollapsed === 'boolean' ? store.unfiledCollapsed : false;
 
     const knownFolderIds = new Set(store.folders.map(folder => folder.id));
     store.folderOrder = store.folderOrder.filter(id => knownFolderIds.has(id));
@@ -202,15 +203,15 @@ function showCreateFolderDialog(defaultName, unfiledEntries) {
         nameInput.value = defaultName;
         nameInput.placeholder = 'Folder name';
 
-        const summary = createElement('div', 'wip-dialog-summary', `미분류 항목 ${unfiledEntries.length}개`);
-        const actions = createElement('div', 'wip-dialog-actions');
-        const selectAllButton = createElement('button', 'menu_button', '모두 선택');
-        const clearButton = createElement('button', 'menu_button', '선택 해제');
-        selectAllButton.type = 'button';
-        clearButton.type = 'button';
-        actions.append(selectAllButton, clearButton);
+        const selectAllRow = createElement('label', 'wip-dialog-select-row');
+        const selectAllCheckbox = createElement('input');
+        selectAllCheckbox.type = 'checkbox';
+        const summary = createElement('span', 'wip-dialog-summary', `미분류 항목 ${unfiledEntries.length}개`);
+        selectAllRow.append(selectAllCheckbox, summary);
 
         const list = createElement('div', 'wip-dialog-entry-list');
+        const entryCheckboxes = [];
+
         if (!unfiledEntries.length) {
             list.append(createElement('div', 'wip-dialog-empty', '미분류 항목이 없습니다. 빈 폴더를 생성합니다.'));
         }
@@ -221,6 +222,7 @@ function showCreateFolderDialog(defaultName, unfiledEntries) {
             const checkbox = createElement('input');
             checkbox.type = 'checkbox';
             checkbox.value = uid;
+            entryCheckboxes.push(checkbox);
 
             const text = createElement('span', 'wip-dialog-entry-text');
             const entryTitle = createElement('span', 'wip-dialog-entry-title', getEntryTitle(entry));
@@ -247,35 +249,54 @@ function showCreateFolderDialog(defaultName, unfiledEntries) {
             resolve(closeDialog(overlay, result));
         };
 
-        const getSelectedUids = () => Array.from(list.querySelectorAll('input[type="checkbox"]:checked'))
+        const getSelectedUids = () => entryCheckboxes
+            .filter(checkbox => checkbox.checked)
             .map(checkbox => checkbox.value);
+
+        const updateSelectAllState = () => {
+            const checkedCount = entryCheckboxes.filter(checkbox => checkbox.checked).length;
+            selectAllCheckbox.checked = !!entryCheckboxes.length && checkedCount === entryCheckboxes.length;
+            selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < entryCheckboxes.length;
+        };
 
         function onKeyDown(event) {
             if (event.key === 'Escape') {
+                event.stopPropagation();
                 finish(null);
             }
         }
 
-        selectAllButton.addEventListener('click', () => {
-            list.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-                checkbox.checked = true;
+        for (const eventName of ['pointerdown', 'mousedown', 'mouseup', 'click', 'keydown']) {
+            overlay.addEventListener(eventName, event => {
+                event.stopPropagation();
             });
+        }
+
+        selectAllCheckbox.addEventListener('change', () => {
+            for (const checkbox of entryCheckboxes) {
+                checkbox.checked = selectAllCheckbox.checked;
+            }
+            updateSelectAllState();
         });
 
-        clearButton.addEventListener('click', () => {
-            list.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-                checkbox.checked = false;
-            });
+        for (const checkbox of entryCheckboxes) {
+            checkbox.addEventListener('change', updateSelectAllState);
+        }
+
+        cancelButton.addEventListener('click', event => {
+            event.stopPropagation();
+            finish(null);
         });
 
-        cancelButton.addEventListener('click', () => finish(null));
         nameInput.addEventListener('keydown', event => {
             if (event.key !== 'Enter') return;
             event.preventDefault();
+            event.stopPropagation();
             createButton.click();
         });
 
-        createButton.addEventListener('click', () => {
+        createButton.addEventListener('click', event => {
+            event.stopPropagation();
             const name = nameInput.value.trim();
             if (!name) {
                 nameInput.focus();
@@ -286,9 +307,10 @@ function showCreateFolderDialog(defaultName, unfiledEntries) {
         });
 
         document.addEventListener('keydown', onKeyDown);
-        dialog.append(title, nameInput, summary, actions, list, footer);
+        dialog.append(title, nameInput, selectAllRow, list, footer);
         overlay.append(dialog);
-        document.body.append(overlay);
+        (document.querySelector('#WorldInfo') || document.body).append(overlay);
+        updateSelectAllState();
         nameInput.focus();
         nameInput.select();
     });
@@ -417,7 +439,12 @@ function renderFolder(folder, entries, isUnfiled = false) {
         folder.collapsed ? 'fa-circle-chevron-down' : 'fa-circle-chevron-up',
         folder.collapsed ? '폴더 펼치기' : '폴더 접기',
         async () => {
-            folder.collapsed = !folder.collapsed;
+            if (isUnfiled) {
+                store.unfiledCollapsed = !store.unfiledCollapsed;
+            } else {
+                folder.collapsed = !folder.collapsed;
+            }
+
             renderData();
             await saveCurrentData();
         },
@@ -477,7 +504,7 @@ function renderFolder(folder, entries, isUnfiled = false) {
 
     const entryList = createElement('div', 'wip-entry-list');
     entryList.dataset.folderId = folder.id;
-    entryList.hidden = !!folder.collapsed;
+    entryList.hidden = !!folder.collapsed || entries.length === 0;
 
     for (const entry of entries) {
         ensureEntryFolderHandle(entry);
@@ -552,10 +579,42 @@ function enableSorting() {
             handle: '.wip-entry-handle',
             items: '> .world_entry',
             placeholder: 'wip-entry-placeholder',
-            stop: async () => {
+            stop: async (_, ui) => {
+                if (ui.item?.data('wipFolderDropPending')) return;
+
                 syncFromDom();
                 await saveCurrentData();
                 renderData();
+            },
+        });
+    }
+
+    if (!jQuery.fn.droppable) return;
+
+    for (const header of entriesList.querySelectorAll('.wip-folder-header')) {
+        const droppableHeader = jQuery(header);
+        if (droppableHeader.droppable('instance')) droppableHeader.droppable('destroy');
+        droppableHeader.droppable({
+            accept: '.world_entry',
+            hoverClass: 'wip-folder-drop-hover',
+            tolerance: 'pointer',
+            drop: async (_, ui) => {
+                const targetFolder = header.closest('.wip-folder-card');
+                const targetList = targetFolder?.querySelector(':scope > .wip-entry-list');
+                const draggedEntry = ui.draggable?.[0];
+
+                if (!targetList || !draggedEntry || targetList.contains(draggedEntry)) {
+                    return;
+                }
+
+                ui.draggable.data('wipFolderDropPending', true);
+                setTimeout(async () => {
+                    ui.draggable.removeData('wipFolderDropPending');
+                    targetList.append(draggedEntry);
+                    syncFromDom();
+                    await saveCurrentData();
+                    renderData();
+                }, 0);
             },
         });
     }
@@ -618,7 +677,7 @@ function renderData() {
         }
 
         fragment.append(renderFolder(
-            { id: UNFILED_ID, name: 'Unfiled', collapsed: false },
+            { id: UNFILED_ID, name: 'Unfiled', collapsed: store.unfiledCollapsed },
             orderEntryNodes(grouped[UNFILED_ID] ?? [], UNFILED_ID, store),
             true,
         ));
