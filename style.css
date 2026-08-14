@@ -419,6 +419,10 @@
     grid-template-columns: minmax(220px, 2fr) repeat(auto-fit, minmax(110px, 1fr));
 }
 
+.wip-entry-matching-grid {
+    grid-template-columns: minmax(72px, 120px) minmax(0, 1fr) minmax(0, 1fr);
+}
+
 .wip-entry-tabpanel [name="keywordsAndLogicBlock"],
 .wip-entry-tabpanel > .flex-container.wide100p.flexGap10,
 .wip-entry-tabpanel [name="WIEntryBottomControls"] {
