@@ -10,6 +10,7 @@ let currentData = null;
 let isSaving = false;
 let isOrganizing = false;
 let organizeTimer = null;
+let loadTimer = null;
 let entriesObserver = null;
 
 function createElement(tag, className = '', text = '') {
@@ -106,6 +107,23 @@ async function loadSelectedBook() {
     scheduleRenderData();
 }
 
+function scheduleLoadSelectedBook(delay = 100) {
+    clearTimeout(loadTimer);
+    loadTimer = setTimeout(() => {
+        loadSelectedBook();
+    }, delay);
+}
+
+async function ensureCurrentDataLoaded() {
+    const selectedBookName = getSelectedBookName();
+    if (currentData && currentBookName === selectedBookName) {
+        return true;
+    }
+
+    await loadSelectedBook();
+    return !!currentData;
+}
+
 function renderEmpty(message) {
     setStatus(message);
     const entriesList = getEntriesList();
@@ -121,7 +139,11 @@ function renderToolbar() {
     const newFolderButton = createElement('button', 'menu_button wip-button', 'New Folder');
     newFolderButton.type = 'button';
     newFolderButton.addEventListener('click', async () => {
-        if (!currentData) return;
+        if (!await ensureCurrentDataLoaded()) {
+            setStatus('Select a lorebook first.');
+            return;
+        }
+
         const store = ensureStore(currentData);
         const name = prompt('Folder name', `Folder ${store.folders.length + 1}`);
         if (!name) return;
@@ -396,6 +418,11 @@ function observeEntriesList(entriesList) {
     entriesObserver?.disconnect();
     entriesObserver = new MutationObserver(() => {
         if (isOrganizing) return;
+        if (!currentData) {
+            scheduleLoadSelectedBook();
+            return;
+        }
+
         scheduleRenderData();
     });
     entriesObserver.observe(entriesList, { childList: true });
@@ -422,6 +449,7 @@ function mount() {
 
     editorSelect?.addEventListener('change', loadSelectedBook);
     loadSelectedBook();
+    scheduleLoadSelectedBook(500);
 }
 
 eventSource.on(event_types.APP_READY, mount);
