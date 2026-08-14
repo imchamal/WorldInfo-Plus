@@ -149,6 +149,151 @@ function renderEmpty(message) {
     entriesList?.querySelectorAll(':scope > .wip-folder-card').forEach(element => element.remove());
 }
 
+function getEntryTitle(entry) {
+    const comment = entry.comment?.trim();
+    if (comment) return comment;
+
+    const keys = Array.isArray(entry.key) ? entry.key.filter(Boolean).join(', ') : '';
+    return keys || `UID ${entry.uid}`;
+}
+
+function getEntrySubtitle(entry) {
+    const keys = Array.isArray(entry.key) ? entry.key.filter(Boolean).join(', ') : '';
+    if (entry.comment?.trim() && keys) return keys;
+
+    return String(entry.content ?? '').replace(/\s+/g, ' ').trim().slice(0, 240);
+}
+
+function getUnfiledEntries(data, store) {
+    const folderIds = new Set(store.folders.map(folder => folder.id));
+    const getSortIndex = entry => {
+        const index = Number(entry.displayIndex ?? entry.order ?? entry.uid);
+        return Number.isFinite(index) ? index : Number(entry.uid);
+    };
+
+    return Object.values(data.entries ?? {})
+        .filter(entry => {
+            const folderId = store.entryFolders[String(entry.uid)];
+            return !folderId || !folderIds.has(folderId);
+        })
+        .sort((a, b) => {
+            const aIndex = getSortIndex(a);
+            const bIndex = getSortIndex(b);
+            if (aIndex !== bIndex) return aIndex - bIndex;
+            return Number(a.uid) - Number(b.uid);
+        });
+}
+
+function closeDialog(dialog, result) {
+    dialog.remove();
+    return result;
+}
+
+function showCreateFolderDialog(defaultName, unfiledEntries) {
+    return new Promise(resolve => {
+        const overlay = createElement('div', 'wip-dialog-overlay');
+        const dialog = createElement('div', 'wip-dialog');
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+
+        const title = createElement('div', 'wip-dialog-title', '새 폴더');
+        const nameInput = createElement('input', 'text_pole wip-folder-input');
+        nameInput.type = 'text';
+        nameInput.value = defaultName;
+        nameInput.placeholder = 'Folder name';
+
+        const summary = createElement('div', 'wip-dialog-summary', `미분류 항목 ${unfiledEntries.length}개`);
+        const actions = createElement('div', 'wip-dialog-actions');
+        const selectAllButton = createElement('button', 'menu_button', '모두 선택');
+        const clearButton = createElement('button', 'menu_button', '선택 해제');
+        selectAllButton.type = 'button';
+        clearButton.type = 'button';
+        actions.append(selectAllButton, clearButton);
+
+        const list = createElement('div', 'wip-dialog-entry-list');
+        if (!unfiledEntries.length) {
+            list.append(createElement('div', 'wip-dialog-empty', '미분류 항목이 없습니다. 빈 폴더를 생성합니다.'));
+        }
+
+        for (const entry of unfiledEntries) {
+            const uid = String(entry.uid);
+            const row = createElement('label', 'wip-dialog-entry');
+            const checkbox = createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = uid;
+
+            const text = createElement('span', 'wip-dialog-entry-text');
+            const entryTitle = createElement('span', 'wip-dialog-entry-title', getEntryTitle(entry));
+            const subtitle = getEntrySubtitle(entry);
+            text.append(entryTitle);
+
+            if (subtitle) {
+                text.append(createElement('span', 'wip-dialog-entry-subtitle', subtitle));
+            }
+
+            row.append(checkbox, text);
+            list.append(row);
+        }
+
+        const footer = createElement('div', 'wip-dialog-footer');
+        const cancelButton = createElement('button', 'menu_button', '취소');
+        const createButton = createElement('button', 'menu_button', '생성');
+        cancelButton.type = 'button';
+        createButton.type = 'button';
+        footer.append(cancelButton, createButton);
+
+        const finish = result => {
+            document.removeEventListener('keydown', onKeyDown);
+            resolve(closeDialog(overlay, result));
+        };
+
+        const getSelectedUids = () => Array.from(list.querySelectorAll('input[type="checkbox"]:checked'))
+            .map(checkbox => checkbox.value);
+
+        function onKeyDown(event) {
+            if (event.key === 'Escape') {
+                finish(null);
+            }
+        }
+
+        selectAllButton.addEventListener('click', () => {
+            list.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+        });
+
+        clearButton.addEventListener('click', () => {
+            list.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+        });
+
+        cancelButton.addEventListener('click', () => finish(null));
+        nameInput.addEventListener('keydown', event => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            createButton.click();
+        });
+
+        createButton.addEventListener('click', () => {
+            const name = nameInput.value.trim();
+            if (!name) {
+                nameInput.focus();
+                return;
+            }
+
+            finish({ name, selectedUids: getSelectedUids() });
+        });
+
+        document.addEventListener('keydown', onKeyDown);
+        dialog.append(title, nameInput, summary, actions, list, footer);
+        overlay.append(dialog);
+        document.body.append(overlay);
+        nameInput.focus();
+        nameInput.select();
+    });
+}
+
 async function createFolder() {
     if (!await ensureCurrentDataLoaded()) {
         setStatus('Select a lorebook first.');
@@ -156,13 +301,17 @@ async function createFolder() {
     }
 
     const store = ensureStore(currentData);
-    const name = prompt('Folder name', `Folder ${store.folders.length + 1}`);
-    if (!name) return;
+    const result = await showCreateFolderDialog(`Folder ${store.folders.length + 1}`, getUnfiledEntries(currentData, store));
+    if (!result) return;
 
     const id = `folder_${Date.now().toString(36)}`;
-    store.folders.push({ id, name: name.trim(), collapsed: false, order: store.folderOrder.length });
+    store.folders.push({ id, name: result.name, collapsed: false, order: store.folderOrder.length });
     store.folderOrder.push(id);
-    store.entryOrder[id] = [];
+    store.entryOrder[id] = result.selectedUids;
+
+    for (const uid of result.selectedUids) {
+        store.entryFolders[uid] = id;
+    }
 
     renderData();
     await saveCurrentData();

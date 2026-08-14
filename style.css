@@ -96,3 +96,104 @@
     padding: 10px;
     opacity: 0.75;
 }
+
+.wip-dialog-overlay {
+    position: fixed;
+    z-index: 50000;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.wip-dialog {
+    display: flex;
+    width: min(640px, 100%);
+    max-height: min(720px, 90vh);
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    background: var(--SmartThemeBlurTintColor);
+    color: var(--SmartThemeBodyColor);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.wip-dialog-title {
+    font-weight: 700;
+}
+
+.wip-folder-input {
+    width: 100%;
+}
+
+.wip-dialog-summary {
+    opacity: 0.8;
+    font-size: 0.9em;
+}
+
+.wip-dialog-actions,
+.wip-dialog-footer {
+    display: flex;
+    gap: 8px;
+}
+
+.wip-dialog-footer {
+    justify-content: flex-end;
+}
+
+.wip-dialog-entry-list {
+    display: flex;
+    min-height: 96px;
+    flex-direction: column;
+    gap: 6px;
+    overflow: auto;
+    padding: 6px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+}
+
+.wip-dialog-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.wip-dialog-entry:hover {
+    background: var(--black30a);
+}
+
+.wip-dialog-entry input {
+    margin-top: 3px;
+}
+
+.wip-dialog-entry-text {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.wip-dialog-entry-title,
+.wip-dialog-entry-subtitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wip-dialog-entry-title {
+    font-weight: 600;
+}
+
+.wip-dialog-entry-subtitle,
+.wip-dialog-empty {
+    opacity: 0.75;
+    font-size: 0.9em;
+}
