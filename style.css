@@ -450,13 +450,30 @@
     width: 100%;
 }
 
-.wip-entry-tabpanel [name="keywordsAndLogicBlock"] > .world_entry_form_control {
-    min-width: min(180px, 100%);
-}
-
 .wip-entry-tabpanel [name="keywordsAndLogicBlock"] > .keyprimary,
 .wip-entry-tabpanel [name="keywordsAndLogicBlock"] > .keysecondary {
-    min-width: min(280px, 100%);
+    min-width: 0;
+    flex: 1 1 0;
+}
+
+.wip-entry-tabpanel [name="keywordsAndLogicBlock"] > .world_entry_form_control:not(.keyprimary):not(.keysecondary) {
+    min-width: min(150px, 100%);
+    flex: 0 1 180px;
+}
+
+.wip-entry-tabpanel [name="keywordsAndLogicBlock"] .select2-container,
+.wip-entry-tabpanel [name="keywordsAndLogicBlock"] .keyselect,
+.wip-entry-tabpanel [name="keywordsAndLogicBlock"] textarea,
+.wip-entry-tabpanel [name="keywordsAndLogicBlock"] select {
+    max-width: 100%;
+}
+
+.wip-entry-tabpanel [name="keywordsAndLogicBlock"] .keyprimaryselect,
+.wip-entry-tabpanel [name="keywordsAndLogicBlock"] .keysecondaryselect,
+.wip-entry-tabpanel [name="keywordsAndLogicBlock"] .keyprimarytextpole,
+.wip-entry-tabpanel [name="keywordsAndLogicBlock"] .keysecondarytextpole {
+    width: 100% !important;
+    box-sizing: border-box;
 }
 
 .wip-entry-tabpanel textarea[name="content"] {
