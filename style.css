@@ -361,30 +361,45 @@
 }
 
 .wip-entry-tablist {
-    display: flex;
+    display: grid;
     width: 100%;
-    flex-wrap: wrap;
-    gap: 4px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    background: var(--black30a);
 }
 
 .wip-entry-tab {
-    min-height: 30px;
-    padding: 4px 10px;
+    width: 100%;
+    min-width: 0;
+    min-height: 34px;
+    overflow: hidden;
+    padding: 5px 8px;
     border: 1px solid transparent;
     border-radius: 6px;
     background: transparent;
     color: var(--SmartThemeBodyColor);
     cursor: pointer;
     font: inherit;
+    font-weight: 600;
     line-height: 1.2;
+    opacity: 0.76;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.wip-entry-tab:hover,
+.wip-entry-tab:hover {
+    background: var(--black30a);
+    opacity: 1;
+}
+
 .wip-entry-tab[aria-selected="true"] {
     border-color: var(--SmartThemeBorderColor);
-    background: var(--black30a);
+    background: var(--SmartThemeBlurTintColor);
+    opacity: 1;
 }
 
 .wip-entry-tab:focus-visible {
@@ -480,6 +495,14 @@
     min-height: 240px;
 }
 
+.wip-entry-tabpanel[data-tab-id="activation"] > [name="keywordsAndLogicBlock"],
+.wip-entry-tabpanel[data-tab-id="filters"] > .inline-drawer,
+.wip-entry-advanced-timing-row,
+.wip-entry-advanced-recursion-row {
+    padding-top: 10px;
+    border-top: 1px solid var(--SmartThemeBorderColor);
+}
+
 .wip-entry-advanced-row {
     display: grid !important;
     width: 100%;
@@ -499,6 +522,20 @@
     text-align: left !important;
 }
 
+.wip-entry-advanced-group-row .flex-container.justifySpaceBetween:has(input[name="groupOverride"]) {
+    align-items: flex-start;
+}
+
+.wip-entry-advanced-group-row label[for="groupOverride"] {
+    align-items: flex-start;
+    margin-top: 0 !important;
+    line-height: 1.2;
+}
+
+.wip-entry-advanced-group-row label[for="groupOverride"] input[name="groupOverride"] {
+    margin-top: 0;
+}
+
 .wip-entry-advanced-timing-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -509,6 +546,18 @@
 
 .wip-entry-advanced-recursion-row > .world_entry_form_control {
     grid-column: 2;
+}
+
+.wip-entry-advanced-recursion-row:has(input[name="delay_until_recursion"]:checked) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wip-entry-advanced-recursion-row:has(input[name="delay_until_recursion"]:checked) .wip-entry-recursion-options {
+    grid-column: 1 / span 2;
+}
+
+.wip-entry-advanced-recursion-row:has(input[name="delay_until_recursion"]:checked) > .world_entry_form_control {
+    grid-column: 3;
 }
 
 .wip-entry-advanced-row > * {
