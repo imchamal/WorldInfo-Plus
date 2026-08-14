@@ -934,6 +934,34 @@ function restoreEntryInsertionControls(entry) {
     header.append(headerControls);
 }
 
+function updateEntryDepthControlVisibility(entry) {
+    const depthField = entry.querySelector('[name="depth"]');
+    const depthControl = depthField?.closest('.world_entry_form_control, .flex4, .flex2, label.checkbox, label.checkbox_label');
+    if (!depthControl || !depthField) return;
+
+    const isUnavailable = depthField.disabled
+        || depthField.hidden
+        || depthField.type === 'hidden'
+        || getComputedStyle(depthField).display === 'none'
+        || getComputedStyle(depthField).visibility === 'hidden';
+
+    depthControl.hidden = isUnavailable;
+    depthControl.classList.toggle('wip-entry-depth-hidden', isUnavailable);
+}
+
+function bindEntryDepthVisibility(entry) {
+    if (entry.dataset.wipDepthVisibilityHandler === 'true') return;
+
+    const positionField = entry.querySelector('[name="position"]');
+    const depthField = entry.querySelector('[name="depth"]');
+    if (!positionField && !depthField) return;
+
+    entry.dataset.wipDepthVisibilityHandler = 'true';
+    const update = () => requestAnimationFrame(() => updateEntryDepthControlVisibility(entry));
+    positionField?.addEventListener('change', update);
+    depthField?.addEventListener('change', update);
+}
+
 function moveEntryInsertionControlsToTab(entry, edit) {
     const activationPanel = edit?.querySelector(':scope > .wip-entry-tabs .wip-entry-tabpanel[data-tab-id="activation"]');
     const headerControls = getEntryHeaderControls(entry);
@@ -941,6 +969,9 @@ function moveEntryInsertionControlsToTab(entry, edit) {
     if (headerControls && !activationPanel.contains(headerControls)) {
         activationPanel.prepend(headerControls);
     }
+
+    bindEntryDepthVisibility(entry);
+    updateEntryDepthControlVisibility(entry);
 }
 
 function getFieldWideRow(rootElement, fieldName) {

@@ -407,6 +407,28 @@
     gap: 8px;
 }
 
+.wip-entry-tabpanel > .WIEnteryHeaderControls {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(180px, 2fr) repeat(3, minmax(80px, 1fr));
+    gap: 8px;
+    align-items: end;
+}
+
+.wip-entry-tabpanel > .WIEnteryHeaderControls > * {
+    min-width: 0;
+}
+
+.wip-entry-tabpanel > .WIEnteryHeaderControls .text_pole,
+.wip-entry-tabpanel > .WIEnteryHeaderControls select {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.wip-entry-tabpanel > .WIEnteryHeaderControls:has(.wip-entry-depth-hidden) {
+    grid-template-columns: minmax(180px, 2fr) repeat(2, minmax(80px, 1fr));
+}
+
 .wip-entry-tabpanel [name="contentAndCharFilterBlock"],
 .wip-entry-tabpanel > .inline-drawer {
     width: 100%;
@@ -417,9 +439,16 @@
 }
 
 .wip-entry-recursion-options {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    gap: 12px;
+    display: grid !important;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 20px;
+    justify-content: stretch;
+}
+
+.wip-entry-recursion-options > * {
+    width: 100%;
+    min-width: 0;
 }
 
 .WIEnteryHeaderControls:empty {
