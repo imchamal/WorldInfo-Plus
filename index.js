@@ -8,12 +8,19 @@ let root;
 let currentBookName = '';
 let currentData = null;
 let isSaving = false;
+let isOrganizing = false;
+let organizeTimer = null;
+let entriesObserver = null;
 
 function createElement(tag, className = '', text = '') {
     const element = document.createElement(tag);
     if (className) element.className = className;
     if (text) element.textContent = text;
     return element;
+}
+
+function getEntriesList() {
+    return document.querySelector('#world_popup_entries_list');
 }
 
 function getSelectedBookName() {
@@ -56,42 +63,8 @@ function getOrderedFolders(store) {
         .filter(Boolean);
 }
 
-function sortEntriesForFolder(entries, order) {
-    const index = new Map(order.map((uid, position) => [String(uid), position]));
-    return [...entries].sort((a, b) => {
-        const aIndex = index.has(String(a.uid)) ? index.get(String(a.uid)) : Number.MAX_SAFE_INTEGER;
-        const bIndex = index.has(String(b.uid)) ? index.get(String(b.uid)) : Number.MAX_SAFE_INTEGER;
-        if (aIndex !== bIndex) return aIndex - bIndex;
-        return Number(a.uid) - Number(b.uid);
-    });
-}
-
-function groupEntries(data, store) {
-    const folderIds = new Set(store.folders.map(folder => folder.id));
-    const grouped = { [UNFILED_ID]: [] };
-
-    for (const folder of store.folders) {
-        grouped[folder.id] = [];
-    }
-
-    for (const entry of Object.values(data.entries ?? {})) {
-        const uid = String(entry.uid);
-        const folderId = store.entryFolders[uid];
-        if (folderId && folderIds.has(folderId)) {
-            grouped[folderId].push(entry);
-        } else {
-            grouped[UNFILED_ID].push(entry);
-        }
-    }
-
-    for (const [folderId, entries] of Object.entries(grouped)) {
-        grouped[folderId] = sortEntriesForFolder(entries, store.entryOrder[folderId] ?? []);
-    }
-
-    return grouped;
-}
-
 function setStatus(message) {
+    if (!root) return;
     root.querySelector('.wip-status').textContent = message;
 }
 
@@ -129,14 +102,14 @@ async function loadSelectedBook() {
     }
 
     ensureStore(currentData);
-    renderData();
     setStatus(currentBookName);
+    scheduleRenderData();
 }
 
 function renderEmpty(message) {
-    const list = root.querySelector('.wip-folder-list');
-    list.innerHTML = '';
-    list.append(createElement('div', 'wip-empty', message));
+    setStatus(message);
+    const entriesList = getEntriesList();
+    entriesList?.querySelectorAll(':scope > .wip-folder-card').forEach(element => element.remove());
 }
 
 function renderToolbar() {
@@ -168,6 +141,47 @@ function renderToolbar() {
 
     toolbar.append(title, status, newFolderButton, refreshButton);
     return toolbar;
+}
+
+function getEntryUid(element) {
+    return String(element.dataset.uid || element.getAttribute('uid') || '');
+}
+
+function ensureEntryFolderHandle(entry) {
+    let handle = entry.querySelector(':scope .wip-entry-handle');
+    if (handle) return;
+
+    handle = entry.querySelector(':scope .drag-handle');
+    if (handle) {
+        handle.classList.add('wip-entry-handle');
+        return;
+    }
+
+    handle = createElement('span', 'drag-handle wip-entry-handle');
+    handle.innerHTML = '&#9776;';
+
+    const header = entry.querySelector('.inline-drawer-header') || entry.querySelector('.world_entry_form') || entry;
+    header.prepend(handle);
+}
+
+function collectRenderedEntries(entriesList) {
+    return Array.from(entriesList.querySelectorAll('.world_entry'))
+        .filter(entry => !entry.closest('#entry_edit_template'))
+        .filter(entry => getEntryUid(entry));
+}
+
+function orderEntryNodes(nodes, folderId, store) {
+    const order = store.entryOrder[folderId] ?? [];
+    const index = new Map(order.map((uid, position) => [String(uid), position]));
+
+    return [...nodes].sort((a, b) => {
+        const aUid = getEntryUid(a);
+        const bUid = getEntryUid(b);
+        const aIndex = index.has(aUid) ? index.get(aUid) : Number.MAX_SAFE_INTEGER;
+        const bIndex = index.has(bUid) ? index.get(bUid) : Number.MAX_SAFE_INTEGER;
+        if (aIndex !== bIndex) return aIndex - bIndex;
+        return Number(aUid) - Number(bUid);
+    });
 }
 
 function renderFolder(folder, entries, isUnfiled = false) {
@@ -230,38 +244,25 @@ function renderFolder(folder, entries, isUnfiled = false) {
 
     const entryList = createElement('div', 'wip-entry-list');
     entryList.dataset.folderId = folder.id;
+    entryList.hidden = !!folder.collapsed;
 
-    if (!folder.collapsed) {
-        for (const entry of entries) {
-            entryList.append(renderEntry(entry));
-        }
+    for (const entry of entries) {
+        ensureEntryFolderHandle(entry);
+        entryList.append(entry);
     }
 
     card.append(header, entryList);
     return card;
 }
 
-function renderEntry(entry) {
-    const card = createElement('article', 'wip-entry-card');
-    card.dataset.uid = String(entry.uid);
-
-    const handle = createElement('span', 'drag-handle wip-entry-handle');
-    handle.innerHTML = '&#9776;';
-
-    const content = createElement('div', 'wip-entry-content');
-    const title = createElement('div', 'wip-entry-title', entry.comment?.trim() || `UID ${entry.uid}`);
-    const keys = createElement('div', 'wip-entry-keys', Array.isArray(entry.key) ? entry.key.join(', ') : '');
-
-    content.append(title, keys);
-    card.append(handle, content);
-    return card;
-}
-
 function syncFromDom() {
     if (!currentData) return;
 
+    const entriesList = getEntriesList();
+    if (!entriesList) return;
+
     const store = ensureStore(currentData);
-    const folderIds = Array.from(root.querySelectorAll('.wip-folder-card[data-folder-id]'))
+    const folderIds = Array.from(entriesList.querySelectorAll(':scope > .wip-folder-card[data-folder-id]'))
         .map(element => element.dataset.folderId)
         .filter(id => id && id !== UNFILED_ID);
 
@@ -271,9 +272,9 @@ function syncFromDom() {
         folder.order = store.folderOrder.indexOf(folder.id);
     }
 
-    for (const list of root.querySelectorAll('.wip-entry-list')) {
+    for (const list of entriesList.querySelectorAll('.wip-entry-list')) {
         const folderId = list.dataset.folderId;
-        const uids = Array.from(list.querySelectorAll('.wip-entry-card[data-uid]')).map(element => element.dataset.uid);
+        const uids = Array.from(list.querySelectorAll('.world_entry')).map(element => getEntryUid(element)).filter(Boolean);
         store.entryOrder[folderId] = uids;
 
         for (const uid of uids) {
@@ -292,11 +293,14 @@ function enableSorting() {
         return;
     }
 
-    const folderList = jQuery(root.querySelector('.wip-folder-list'));
+    const entriesList = getEntriesList();
+    if (!entriesList) return;
+
+    const folderList = jQuery(entriesList);
     if (folderList.sortable('instance')) folderList.sortable('destroy');
     folderList.sortable({
         handle: '.wip-folder-handle',
-        items: '.wip-folder-card:not([data-folder-id="__unfiled"])',
+        items: '> .wip-folder-card:not([data-folder-id="__unfiled"])',
         stop: async () => {
             syncFromDom();
             await saveCurrentData();
@@ -304,12 +308,13 @@ function enableSorting() {
         },
     });
 
-    for (const list of root.querySelectorAll('.wip-entry-list')) {
+    for (const list of entriesList.querySelectorAll('.wip-entry-list')) {
         const sortableList = jQuery(list);
         if (sortableList.sortable('instance')) sortableList.sortable('destroy');
         sortableList.sortable({
-            connectWith: '.wip-entry-list',
+            connectWith: '#world_popup_entries_list .wip-entry-list',
             handle: '.wip-entry-handle',
+            items: '> .world_entry',
             placeholder: 'wip-entry-placeholder',
             stop: async () => {
                 syncFromDom();
@@ -320,29 +325,80 @@ function enableSorting() {
     }
 }
 
-function renderData() {
-    const list = root.querySelector('.wip-folder-list');
-    list.innerHTML = '';
+function scheduleRenderData(delay = 80) {
+    clearTimeout(organizeTimer);
+    organizeTimer = setTimeout(() => {
+        if (currentData) {
+            renderData();
+        }
+    }, delay);
+}
 
-    if (!currentData) {
+function renderData() {
+    const entriesList = getEntriesList();
+    if (isOrganizing) return;
+
+    if (!currentData || !entriesList) {
         renderEmpty('No lorebook loaded.');
         return;
     }
 
-    const store = ensureStore(currentData);
-    const grouped = groupEntries(currentData, store);
+    const renderedEntries = collectRenderedEntries(entriesList);
+    if (!renderedEntries.length) return;
 
-    for (const folder of getOrderedFolders(store)) {
-        list.append(renderFolder(folder, grouped[folder.id] ?? []));
+    isOrganizing = true;
+
+    const store = ensureStore(currentData);
+    const folderIds = new Set(store.folders.map(folder => folder.id));
+    const grouped = { [UNFILED_ID]: [] };
+
+    for (const folder of store.folders) {
+        grouped[folder.id] = [];
     }
 
-    list.append(renderFolder(
-        { id: UNFILED_ID, name: 'Unfiled', collapsed: false },
-        grouped[UNFILED_ID] ?? [],
-        true,
-    ));
+    for (const entry of renderedEntries) {
+        const uid = getEntryUid(entry);
+        const folderId = store.entryFolders[uid];
+        if (folderId && folderIds.has(folderId)) {
+            grouped[folderId].push(entry);
+        } else {
+            grouped[UNFILED_ID].push(entry);
+        }
+    }
 
-    enableSorting();
+    const oldFolders = Array.from(entriesList.querySelectorAll(':scope > .wip-folder-card'));
+
+    try {
+        const fragment = document.createDocumentFragment();
+
+        for (const folder of getOrderedFolders(store)) {
+            const entries = orderEntryNodes(grouped[folder.id] ?? [], folder.id, store);
+            fragment.append(renderFolder(folder, entries));
+        }
+
+        fragment.append(renderFolder(
+            { id: UNFILED_ID, name: 'Unfiled', collapsed: false },
+            orderEntryNodes(grouped[UNFILED_ID] ?? [], UNFILED_ID, store),
+            true,
+        ));
+
+        oldFolders.forEach(element => element.remove());
+        entriesList.append(fragment);
+        enableSorting();
+    } finally {
+        setTimeout(() => {
+            isOrganizing = false;
+        }, 0);
+    }
+}
+
+function observeEntriesList(entriesList) {
+    entriesObserver?.disconnect();
+    entriesObserver = new MutationObserver(() => {
+        if (isOrganizing) return;
+        scheduleRenderData();
+    });
+    entriesObserver.observe(entriesList, { childList: true });
 }
 
 function mount() {
@@ -357,10 +413,11 @@ function mount() {
 
     root = createElement('div', 'wip-root');
     root.id = 'worldinfo-plus-root';
-    root.append(renderToolbar(), createElement('div', 'wip-folder-list'));
+    root.append(renderToolbar());
 
     const editorSelect = document.querySelector('#world_editor_select');
     entriesList.insertAdjacentElement('beforebegin', root);
+    observeEntriesList(entriesList);
     console.debug('[WorldInfo Plus] Mounted before #world_popup_entries_list');
 
     editorSelect?.addEventListener('change', loadSelectedBook);
@@ -372,5 +429,5 @@ eventSource.on(event_types.WORLDINFO_UPDATED, (name, data) => {
     if (!root || name !== currentBookName || isSaving) return;
     currentData = data;
     ensureStore(currentData);
-    renderData();
+    scheduleRenderData();
 });

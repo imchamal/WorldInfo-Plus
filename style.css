@@ -32,13 +32,8 @@
     cursor: pointer;
 }
 
-.wip-folder-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
 .wip-folder-card {
+    margin-bottom: 8px;
     border: 1px solid var(--SmartThemeBorderColor);
     border-radius: 8px;
     overflow: hidden;
@@ -95,39 +90,6 @@
     flex-direction: column;
     gap: 6px;
     padding: 0 8px 8px;
-}
-
-.wip-entry-card {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 42px;
-    padding: 6px 8px;
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 8px;
-    background: var(--black30a);
-    color: var(--SmartThemeBodyColor);
-}
-
-.wip-entry-content {
-    min-width: 0;
-    flex: 1;
-}
-
-.wip-entry-title,
-.wip-entry-keys {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.wip-entry-title {
-    font-weight: 600;
-}
-
-.wip-entry-keys {
-    opacity: 0.75;
-    font-size: 0.85em;
 }
 
 .wip-entry-placeholder {
