@@ -423,19 +423,32 @@
 }
 
 .wip-entry-tabpanel > .WIEnteryHeaderControls .wi-enter-footer-text {
-    display: flex;
+    display: flex !important;
+    width: 100%;
+    max-width: none !important;
     flex-direction: column;
     gap: 2px;
     line-height: 1.2;
 }
 
+.wip-entry-tabpanel > .WIEnteryHeaderControls .WIEntryHeaderTitleMobile {
+    display: block !important;
+}
+
 .wip-entry-tabpanel > .WIEnteryHeaderControls label,
+.wip-entry-tabpanel > .WIEnteryHeaderControls .WIEntryHeaderTitleMobile,
 .wip-entry-tabpanel > .WIEnteryHeaderControls .wi-enter-footer-text > span:first-child {
     min-height: 1.2em;
     color: var(--SmartThemeBodyColor);
     text-align: center;
     font-size: 0.95em;
     opacity: 0.78;
+}
+
+.wip-entry-tabpanel > .WIEnteryHeaderControls .widthNatural,
+.wip-entry-tabpanel > .WIEnteryHeaderControls .wideMax100px {
+    width: 100% !important;
+    max-width: none !important;
 }
 
 .wip-entry-tabpanel > .WIEnteryHeaderControls .text_pole,
