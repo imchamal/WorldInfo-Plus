@@ -364,21 +364,23 @@
     display: grid;
     width: 100%;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 3px;
-    padding: 3px;
-    border: 1px solid var(--SmartThemeBorderColor);
-    border-radius: 8px;
-    background: var(--black30a);
+    gap: 0;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 0;
+    background: transparent;
 }
 
 .wip-entry-tab {
     width: 100%;
     min-width: 0;
-    min-height: 34px;
+    min-height: 36px;
     overflow: hidden;
-    padding: 5px 8px;
-    border: 1px solid transparent;
-    border-radius: 6px;
+    padding: 6px 8px 9px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
     background: transparent;
     color: var(--SmartThemeBodyColor);
     cursor: pointer;
@@ -392,13 +394,13 @@
 }
 
 .wip-entry-tab:hover {
-    background: var(--black30a);
+    background: transparent;
     opacity: 1;
 }
 
 .wip-entry-tab[aria-selected="true"] {
-    border-color: var(--SmartThemeBorderColor);
-    background: var(--SmartThemeBlurTintColor);
+    border-bottom-color: currentColor;
+    background: transparent;
     opacity: 1;
 }
 
@@ -503,6 +505,26 @@
     border-top: 1px solid var(--SmartThemeBorderColor);
 }
 
+.wip-entry-tabpanel[data-tab-id="activation"] [name="keywordsAndLogicBlock"] .keyprimaryselect + .select2-container .select2-selection--multiple,
+.wip-entry-tabpanel[data-tab-id="activation"] [name="keywordsAndLogicBlock"] .keysecondaryselect + .select2-container .select2-selection--multiple,
+.wip-entry-tabpanel[data-tab-id="activation"] [name="keywordsAndLogicBlock"] textarea[name="key"],
+.wip-entry-tabpanel[data-tab-id="activation"] [name="keywordsAndLogicBlock"] textarea[name="keysecondary"] {
+    min-height: 5.8em;
+}
+
+.wip-entry-filter-character-header,
+.wip-entry-filter-trigger-header {
+    align-items: flex-start;
+    margin-bottom: 5px;
+}
+
+.wip-entry-filter-character-label,
+.wip-entry-filter-trigger-label {
+    display: block;
+    min-height: 1.2em;
+    text-align: left !important;
+}
+
 .wip-entry-advanced-row {
     display: grid !important;
     width: 100%;
@@ -526,14 +548,22 @@
     align-items: flex-start;
 }
 
+.wip-entry-advanced-group-row small[for="group"],
 .wip-entry-advanced-group-row label[for="groupOverride"] {
     align-items: flex-start;
     margin-top: 0 !important;
     line-height: 1.2;
+    transform: translateY(-3px);
 }
 
 .wip-entry-advanced-group-row label[for="groupOverride"] input[name="groupOverride"] {
     margin-top: 0;
+}
+
+.wip-entry-advanced-group-row label[for="groupOverride"] > span > small {
+    display: flex;
+    align-items: center;
+    line-height: 1.2;
 }
 
 .wip-entry-advanced-timing-row {
@@ -609,10 +639,12 @@
 
     .wip-entry-filter-character-label {
         grid-area: character-label;
+        margin-bottom: 0;
     }
 
     .wip-entry-filter-trigger-label {
         grid-area: trigger-label;
+        margin-bottom: 0;
     }
 
     .wip-entry-filter-exclude {
