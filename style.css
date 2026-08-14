@@ -38,6 +38,19 @@
     outline-offset: -3px;
 }
 
+.wip-folder-placeholder {
+    min-height: 52px;
+    margin-bottom: 8px;
+    border: 1px dashed var(--SmartThemeBorderColor);
+    border-radius: 8px;
+}
+
+.wip-folder-sort-helper {
+    overflow: hidden;
+    box-sizing: border-box;
+    opacity: 0.92;
+}
+
 .wip-folder-handle,
 .wip-entry-handle {
     width: 22px;
@@ -96,6 +109,11 @@
     min-height: 42px;
     border: 1px dashed var(--SmartThemeBorderColor);
     border-radius: 8px;
+}
+
+.wip-entry-sort-helper {
+    box-sizing: border-box;
+    opacity: 0.92;
 }
 
 .wip-empty {

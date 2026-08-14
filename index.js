@@ -429,6 +429,7 @@ function renderFolder(folder, entries, isUnfiled = false) {
     const store = ensureStore(currentData);
     const card = createElement('section', 'wip-folder-card');
     card.dataset.folderId = folder.id;
+    card.dataset.collapsed = folder.collapsed ? 'true' : 'false';
 
     const header = createElement('div', 'wip-folder-header');
     const handle = createElement('span', 'drag-handle wip-folder-handle');
@@ -564,6 +565,16 @@ function enableSorting() {
     folderList.sortable({
         handle: '.wip-folder-handle',
         items: '> .wip-folder-card:not([data-folder-id="__unfiled"])',
+        cancel: '.wip-entry-list, .world_entry, input, textarea, select, button, .menu_button',
+        helper: (_, item) => {
+            const helper = item.clone();
+            helper.find('.wip-entry-list').remove();
+            helper.addClass('wip-folder-sort-helper');
+            helper.width(item.outerWidth());
+            return helper;
+        },
+        placeholder: 'wip-folder-placeholder',
+        forcePlaceholderSize: true,
         stop: async () => {
             syncFromDom();
             await saveCurrentData();
@@ -578,7 +589,14 @@ function enableSorting() {
             connectWith: '#world_popup_entries_list .wip-entry-list',
             handle: '.wip-entry-handle',
             items: '> .world_entry',
+            helper: (_, item) => {
+                const helper = item.clone();
+                helper.addClass('wip-entry-sort-helper');
+                helper.width(item.outerWidth());
+                return helper;
+            },
             placeholder: 'wip-entry-placeholder',
+            forcePlaceholderSize: true,
             stop: async (_, ui) => {
                 if (ui.item?.data('wipFolderDropPending')) return;
 
@@ -594,16 +612,19 @@ function enableSorting() {
     for (const header of entriesList.querySelectorAll('.wip-folder-header')) {
         const droppableHeader = jQuery(header);
         if (droppableHeader.droppable('instance')) droppableHeader.droppable('destroy');
+
+        const targetFolder = header.closest('.wip-folder-card');
+        const targetList = targetFolder?.querySelector(':scope > .wip-entry-list');
+        if (!targetList?.hidden) continue;
+
         droppableHeader.droppable({
             accept: '.world_entry',
             hoverClass: 'wip-folder-drop-hover',
             tolerance: 'pointer',
             drop: async (_, ui) => {
-                const targetFolder = header.closest('.wip-folder-card');
-                const targetList = targetFolder?.querySelector(':scope > .wip-entry-list');
                 const draggedEntry = ui.draggable?.[0];
 
-                if (!targetList || !draggedEntry || targetList.contains(draggedEntry)) {
+                if (!draggedEntry?.classList.contains('world_entry') || targetList.contains(draggedEntry)) {
                     return;
                 }
 
