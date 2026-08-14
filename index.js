@@ -1,8 +1,26 @@
-import { eventSource, event_types } from '../../../../script.js';
-import { loadWorldInfo, saveWorldInfo } from '../../../world-info.js';
+import { eventSource, event_types, saveSettingsDebounced } from '../../../../script.js';
+import { extension_settings, getContext } from '../../../extensions.js';
+import { getSelect2OptionId } from '../../../utils.js';
+import { loadWorldInfo, saveWorldInfo, splitKeywordsAndRegexes } from '../../../world-info.js';
 
 const MODULE_NAME = 'worldInfoPlus';
 const UNFILED_ID = '__unfiled';
+const DEFAULT_SETTINGS = {
+    translationProvider: 'google',
+    targetLanguage: 'ko',
+    profileId: '',
+};
+const LANGUAGE_OPTIONS = [
+    ['ko', 'Korean'],
+    ['en', 'English'],
+    ['ja', 'Japanese'],
+    ['zh-CN', 'Chinese (Simplified)'],
+    ['zh-TW', 'Chinese (Traditional)'],
+    ['es', 'Spanish'],
+    ['fr', 'French'],
+    ['de', 'German'],
+    ['ru', 'Russian'],
+];
 const ENTRY_TABS = [
     { id: 'content', label: '본문' },
     { id: 'activation', label: '발동·삽입' },
@@ -19,6 +37,10 @@ let organizeTimer = null;
 let loadTimer = null;
 let entriesObserver = null;
 let entryMoveMenu = null;
+let settingsProfileSelect = null;
+let settingsProfileEventsBound = false;
+let googleTranslateModulePromise = null;
+let connectionRequestServicePromise = null;
 let entryTabIdCounter = 0;
 const entryTabOpenHandlers = new WeakSet();
 
@@ -27,6 +49,434 @@ function createElement(tag, className = '', text = '') {
     if (className) element.className = className;
     if (text) element.textContent = text;
     return element;
+}
+
+function ensureSettings() {
+    extension_settings[MODULE_NAME] ??= {};
+    Object.assign(extension_settings[MODULE_NAME], {
+        ...DEFAULT_SETTINGS,
+        ...extension_settings[MODULE_NAME],
+    });
+
+    if (!['google', 'profile'].includes(extension_settings[MODULE_NAME].translationProvider)) {
+        extension_settings[MODULE_NAME].translationProvider = DEFAULT_SETTINGS.translationProvider;
+    }
+
+    if (typeof extension_settings[MODULE_NAME].targetLanguage !== 'string' || !extension_settings[MODULE_NAME].targetLanguage.trim()) {
+        extension_settings[MODULE_NAME].targetLanguage = DEFAULT_SETTINGS.targetLanguage;
+    }
+
+    return extension_settings[MODULE_NAME];
+}
+
+function notify(type, message, title = 'WorldInfo Plus') {
+    const toast = globalThis.toastr?.[type];
+    if (typeof toast === 'function') {
+        toast(message, title);
+        return;
+    }
+
+    const logger = type === 'error' ? console.error : console.info;
+    logger(`[WorldInfo Plus] ${message}`);
+}
+
+function getLanguageLabel(languageCode) {
+    const option = LANGUAGE_OPTIONS.find(([code]) => code === languageCode);
+    return option ? `${option[1]} (${option[0]})` : languageCode;
+}
+
+function getConnectionProfiles() {
+    return Array.isArray(extension_settings.connectionManager?.profiles)
+        ? extension_settings.connectionManager.profiles
+        : [];
+}
+
+function getConfiguredProfileId({ allowSelectedFallback = true } = {}) {
+    const settings = ensureSettings();
+    return settings.profileId
+        || (allowSelectedFallback ? extension_settings.connectionManager?.selectedProfile : '')
+        || '';
+}
+
+function refreshSettingsProfileSelect(select = settingsProfileSelect) {
+    if (!select) return;
+
+    const settings = ensureSettings();
+    const profiles = [...getConnectionProfiles()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    const selectedProfileId = settings.profileId;
+    select.replaceChildren();
+
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Connection Manager의 현재 프로필 사용';
+    select.append(defaultOption);
+
+    for (const profile of profiles) {
+        const option = document.createElement('option');
+        option.value = profile.id;
+        option.textContent = profile.name || profile.id;
+        select.append(option);
+    }
+
+    select.value = profiles.some(profile => profile.id === selectedProfileId) ? selectedProfileId : '';
+    if (selectedProfileId && !select.value) {
+        settings.profileId = '';
+        saveSettingsDebounced();
+    }
+}
+
+function bindSettingsProfileEvents() {
+    if (settingsProfileEventsBound) return;
+    settingsProfileEventsBound = true;
+
+    for (const eventName of ['CONNECTION_PROFILE_CREATED', 'CONNECTION_PROFILE_UPDATED', 'CONNECTION_PROFILE_DELETED']) {
+        const eventType = event_types[eventName];
+        if (eventType) {
+            eventSource.on(eventType, () => refreshSettingsProfileSelect());
+        }
+    }
+}
+
+function createSettingsField(labelText, control) {
+    const label = createElement('label', 'wip-settings-field');
+    const text = createElement('span', 'wip-settings-label', labelText);
+    label.append(text, control);
+    return label;
+}
+
+function installSettingsPanel() {
+    ensureSettings();
+
+    const settingsContainer = document.querySelector('#extensions_settings2') || document.querySelector('#extensions_settings');
+    if (!settingsContainer) {
+        setTimeout(installSettingsPanel, 500);
+        return;
+    }
+
+    if (document.querySelector('#worldinfo_plus_settings')) {
+        refreshSettingsProfileSelect();
+        return;
+    }
+
+    const settings = ensureSettings();
+    const panel = createElement('div', 'wip-settings');
+    panel.id = 'worldinfo_plus_settings';
+
+    const title = createElement('div', 'wip-settings-title', 'WorldInfo Plus');
+    const grid = createElement('div', 'wip-settings-grid');
+
+    const providerSelect = createElement('select', 'text_pole');
+    const googleOption = document.createElement('option');
+    googleOption.value = 'google';
+    googleOption.textContent = 'Google 무료 번역';
+    const profileOption = document.createElement('option');
+    profileOption.value = 'profile';
+    profileOption.textContent = '프로필 번역';
+    providerSelect.append(googleOption, profileOption);
+    providerSelect.value = settings.translationProvider;
+
+    const languageInput = createElement('input', 'text_pole');
+    languageInput.type = 'text';
+    languageInput.value = settings.targetLanguage;
+    languageInput.placeholder = 'ko';
+    languageInput.setAttribute('list', 'worldinfo_plus_language_options');
+
+    const languageList = createElement('datalist');
+    languageList.id = 'worldinfo_plus_language_options';
+    for (const [code, name] of LANGUAGE_OPTIONS) {
+        const option = document.createElement('option');
+        option.value = code;
+        option.label = name;
+        languageList.append(option);
+    }
+
+    const profileSelect = createElement('select', 'text_pole');
+    settingsProfileSelect = profileSelect;
+
+    providerSelect.addEventListener('change', () => {
+        settings.translationProvider = providerSelect.value;
+        saveSettingsDebounced();
+    });
+    languageInput.addEventListener('change', () => {
+        settings.targetLanguage = languageInput.value.trim() || DEFAULT_SETTINGS.targetLanguage;
+        languageInput.value = settings.targetLanguage;
+        saveSettingsDebounced();
+    });
+    profileSelect.addEventListener('change', () => {
+        settings.profileId = profileSelect.value;
+        saveSettingsDebounced();
+    });
+
+    grid.append(
+        createSettingsField('번역 방식', providerSelect),
+        createSettingsField('대상 언어', languageInput),
+        createSettingsField('연결 프로필', profileSelect),
+    );
+    panel.append(title, grid, languageList);
+    settingsContainer.append(panel);
+
+    refreshSettingsProfileSelect(profileSelect);
+    bindSettingsProfileEvents();
+}
+
+async function getGoogleTranslateFunction() {
+    googleTranslateModulePromise ??= import('/scripts/extensions/translate/index.js');
+    const module = await googleTranslateModulePromise;
+    if (typeof module.translate !== 'function') {
+        throw new Error('Google translation module is not available.');
+    }
+
+    return module.translate;
+}
+
+async function getConnectionRequestService() {
+    const contextService = getContext()?.ConnectionManagerRequestService;
+    if (contextService) return contextService;
+
+    connectionRequestServicePromise ??= import('/scripts/extensions/shared.js')
+        .then(module => module.ConnectionManagerRequestService);
+    const service = await connectionRequestServicePromise;
+    if (!service) {
+        throw new Error('Connection Manager request service is not available.');
+    }
+
+    return service;
+}
+
+function extractServiceText(response) {
+    if (typeof response === 'string') return response;
+    if (typeof response?.content === 'string') return response.content;
+    if (typeof response?.text === 'string') return response.text;
+    if (typeof response?.message === 'string') return response.message;
+    if (typeof response?.choices?.[0]?.message?.content === 'string') return response.choices[0].message.content;
+    if (typeof response?.choices?.[0]?.text === 'string') return response.choices[0].text;
+    return String(response ?? '');
+}
+
+async function sendProfileRequest(prompt, maxTokens, overridePayload = {}) {
+    const profileId = getConfiguredProfileId();
+    if (!profileId) {
+        throw new Error('연결 프로필을 선택하세요.');
+    }
+
+    const requestService = await getConnectionRequestService();
+    const response = await requestService.sendRequest(profileId, prompt, maxTokens, {
+        stream: false,
+        extractData: true,
+        includePreset: true,
+        includeInstruct: true,
+    }, overridePayload);
+
+    return extractServiceText(response).trim();
+}
+
+async function translateText(text) {
+    const settings = ensureSettings();
+    const targetLanguage = settings.targetLanguage || DEFAULT_SETTINGS.targetLanguage;
+
+    if (settings.translationProvider === 'profile') {
+        return await sendProfileRequest([
+            {
+                role: 'system',
+                content: 'You are a precise translation engine. Return only the translated text without explanations, notes, markdown fences, or quotes.',
+            },
+            {
+                role: 'user',
+                content: `Target language: ${getLanguageLabel(targetLanguage)}\n\nText:\n${text}`,
+            },
+        ], Math.min(8192, Math.max(512, Math.ceil(text.length * 0.9) + 256)));
+    }
+
+    const translate = await getGoogleTranslateFunction();
+    const translated = await translate(text, targetLanguage, 'google');
+    if (translated === undefined || translated === null) {
+        throw new Error('Google 번역에 실패했습니다.');
+    }
+
+    return String(translated).trim();
+}
+
+function normalizeGeneratedKeyword(value) {
+    return String(value ?? '')
+        .trim()
+        .replace(/^[-*\d.\s]+/, '')
+        .replace(/^["'`]+|["'`]+$/g, '')
+        .trim();
+}
+
+function isRegexKeyword(value) {
+    return /^\/(?:\\.|[^/])+\/[dgimsuvy]*$/i.test(String(value ?? '').trim());
+}
+
+function uniqueKeywords(keywords) {
+    const values = Array.isArray(keywords)
+        ? keywords
+        : typeof keywords === 'string'
+            ? keywords.split(/\r?\n|,/)
+            : [];
+    const seen = new Set();
+    const result = [];
+
+    for (const keyword of values.map(normalizeGeneratedKeyword).filter(Boolean)) {
+        const key = keyword.toLocaleLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push(keyword);
+    }
+
+    return result;
+}
+
+function extractJsonPayload(text) {
+    const source = String(text ?? '').trim();
+    const fenced = source.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const candidate = fenced?.[1]?.trim() || source;
+
+    for (const [startChar, endChar] of [['{', '}'], ['[', ']']]) {
+        const start = candidate.indexOf(startChar);
+        const end = candidate.lastIndexOf(endChar);
+        if (start !== -1 && end > start) {
+            try {
+                return JSON.parse(candidate.slice(start, end + 1));
+            } catch {
+                // Continue to the next shape.
+            }
+        }
+    }
+
+    try {
+        return JSON.parse(candidate);
+    } catch {
+        return null;
+    }
+}
+
+function parseKeywordListText(text) {
+    return uniqueKeywords(String(text ?? '')
+        .split(/\r?\n|,/)
+        .map(item => item.replace(/^["'\[\]]+|["'\[\]]+$/g, '')));
+}
+
+function parseTranslatedKeywordResponse(text, sourceKeywords) {
+    const parsed = extractJsonPayload(text);
+    let values = parseKeywordListText(text);
+
+    if (Array.isArray(parsed)) {
+        values = parsed;
+    } else if (Array.isArray(parsed?.translations)) {
+        values = parsed.translations;
+    } else if (Array.isArray(parsed?.translated)) {
+        values = parsed.translated;
+    } else if (Array.isArray(parsed?.keywords)) {
+        values = parsed.keywords;
+    }
+
+    return uniqueKeywords(values)
+        .slice(0, sourceKeywords.length)
+        .filter((keyword, index) => keyword.toLocaleLowerCase() !== sourceKeywords[index]?.toLocaleLowerCase());
+}
+
+async function translateKeywordList(keywords) {
+    const sourceKeywords = uniqueKeywords(keywords.filter(keyword => !isRegexKeyword(keyword)));
+    if (!sourceKeywords.length) return [];
+
+    const settings = ensureSettings();
+    const targetLanguage = settings.targetLanguage || DEFAULT_SETTINGS.targetLanguage;
+
+    if (settings.translationProvider === 'profile') {
+        const response = await sendProfileRequest([
+            {
+                role: 'system',
+                content: 'Translate lorebook activation keywords. Return only a JSON array of translated keyword strings, preserving the item order. Do not add explanations.',
+            },
+            {
+                role: 'user',
+                content: `Target language: ${getLanguageLabel(targetLanguage)}\nKeywords JSON:\n${JSON.stringify(sourceKeywords)}`,
+            },
+        ], Math.min(2048, Math.max(256, sourceKeywords.length * 64)));
+        return parseTranslatedKeywordResponse(response, sourceKeywords);
+    }
+
+    const translated = [];
+    for (const keyword of sourceKeywords) {
+        const translatedKeyword = normalizeGeneratedKeyword(await translateText(keyword));
+        if (translatedKeyword && translatedKeyword.toLocaleLowerCase() !== keyword.toLocaleLowerCase()) {
+            translated.push(translatedKeyword);
+        }
+    }
+
+    return uniqueKeywords(translated);
+}
+
+function parseKeywordRecommendation(text) {
+    const parsed = extractJsonPayload(text);
+    if (Array.isArray(parsed)) {
+        return { primary: uniqueKeywords(parsed), secondary: [] };
+    }
+
+    if (parsed && typeof parsed === 'object') {
+        return {
+            primary: uniqueKeywords(parsed.primary || parsed.primary_keywords || parsed.key || parsed.keywords || []),
+            secondary: uniqueKeywords(parsed.secondary || parsed.secondary_keywords || parsed.keysecondary || parsed.optional || []),
+        };
+    }
+
+    return { primary: parseKeywordListText(text), secondary: [] };
+}
+
+async function recommendKeywords(entry) {
+    const targetLanguage = ensureSettings().targetLanguage || DEFAULT_SETTINGS.targetLanguage;
+    const content = entry.querySelector('textarea[name="content"]')?.value?.trim() || '';
+    const comment = entry.querySelector('textarea[name="comment"]')?.value?.trim() || '';
+    const primary = getKeywordValues(entry, 'key');
+    const secondary = getKeywordValues(entry, 'keysecondary');
+
+    if (!content && !comment && !primary.length && !secondary.length) {
+        throw new Error('추천에 사용할 본문이나 키워드가 없습니다.');
+    }
+
+    const response = await sendProfileRequest([
+        {
+            role: 'system',
+            content: [
+                'Recommend concise SillyTavern lorebook activation keywords.',
+                'Return strict JSON only: {"primary":["..."],"secondary":["..."]}.',
+                'Primary keywords should be aliases, names, places, concepts, and memorable phrases that should activate the entry.',
+                'Secondary keywords should only be suggested when they would usefully narrow activation.',
+                'Do not include regexes. Do not repeat existing keywords.',
+            ].join(' '),
+        },
+        {
+            role: 'user',
+            content: [
+                `Target keyword language: ${getLanguageLabel(targetLanguage)}`,
+                `Existing primary keywords: ${JSON.stringify(primary)}`,
+                `Existing secondary keywords: ${JSON.stringify(secondary)}`,
+                `Entry title or memo: ${comment || '(none)'}`,
+                `Entry content:\n${content.slice(0, 6000)}`,
+            ].join('\n\n'),
+        },
+    ], 1200, {
+        temperature: 0.35,
+    });
+
+    return parseKeywordRecommendation(response);
+}
+
+async function runButtonTask(button, busyText, task) {
+    const previousText = button.textContent;
+    button.disabled = true;
+    button.textContent = busyText;
+
+    try {
+        await task();
+    } catch (error) {
+        console.error('[WorldInfo Plus]', error);
+        notify('error', error?.message || String(error));
+    } finally {
+        button.disabled = false;
+        button.textContent = previousText;
+    }
 }
 
 function getEntriesList() {
@@ -917,6 +1367,209 @@ function appendNodeIfPresent(target, node) {
     return true;
 }
 
+function isVisibleElement(element) {
+    return !!element && !element.hidden && getComputedStyle(element).display !== 'none';
+}
+
+function getKeywordControl(entry, fieldName) {
+    const select = entry.querySelector(`select[name="${fieldName}"]`);
+    const textarea = entry.querySelector(`textarea[name="${fieldName}"]`);
+    const select2Container = select?.nextElementSibling?.classList.contains('select2-container')
+        ? select.nextElementSibling
+        : null;
+
+    if (select && isVisibleElement(select2Container)) {
+        return { type: 'select', element: select };
+    }
+
+    if (textarea && isVisibleElement(textarea)) {
+        return { type: 'textarea', element: textarea };
+    }
+
+    if (select) return { type: 'select', element: select };
+    if (textarea) return { type: 'textarea', element: textarea };
+    return null;
+}
+
+function getKeywordValues(entry, fieldName) {
+    const control = getKeywordControl(entry, fieldName);
+    if (!control) return [];
+
+    if (control.type === 'textarea') {
+        return uniqueKeywords(splitKeywordsAndRegexes(control.element.value || ''));
+    }
+
+    const select = control.element;
+    const $select = globalThis.jQuery?.(select);
+    try {
+        if ($select?.data('select2')) {
+            return uniqueKeywords($select.select2('data').map(item => item.text));
+        }
+    } catch (error) {
+        console.warn('[WorldInfo Plus] Could not read Select2 keyword data', error);
+    }
+
+    return uniqueKeywords(Array.from(select.selectedOptions).map(option => option.textContent || option.value));
+}
+
+function dispatchNativeInputChange(element) {
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function setKeywordValues(entry, fieldName, values) {
+    const control = getKeywordControl(entry, fieldName);
+    if (!control) return false;
+
+    const keywords = uniqueKeywords(values);
+    if (control.type === 'textarea') {
+        control.element.value = keywords.join(', ');
+        dispatchNativeInputChange(control.element);
+        return true;
+    }
+
+    const select = control.element;
+    const optionValues = [];
+    for (const keyword of keywords) {
+        const optionId = getSelect2OptionId(keyword);
+        let option = Array.from(select.options).find(item => item.value === optionId || item.textContent === keyword);
+        if (!option) {
+            option = new Option(keyword, optionId, true, true);
+            select.append(option);
+        }
+
+        optionValues.push(option.value);
+    }
+
+    for (const option of select.options) {
+        option.selected = optionValues.includes(option.value);
+    }
+
+    const $select = globalThis.jQuery?.(select);
+    if ($select?.length) {
+        $select.val(optionValues).trigger('change');
+    } else {
+        dispatchNativeInputChange(select);
+    }
+
+    return true;
+}
+
+function appendKeywordsToEntry(entry, fieldName, keywords) {
+    const existing = getKeywordValues(entry, fieldName);
+    const merged = uniqueKeywords([...existing, ...keywords]);
+    const addedCount = merged.length - existing.length;
+
+    if (addedCount <= 0) return 0;
+    setKeywordValues(entry, fieldName, merged);
+    return addedCount;
+}
+
+function ensureContentTranslationTools(panel, contentBlock) {
+    if (!panel || !contentBlock || panel.querySelector(':scope > .wip-content-translation-actions')) return;
+
+    const textarea = contentBlock.querySelector('textarea[name="content"]');
+    if (!textarea) return;
+
+    const actions = createElement('div', 'wip-content-translation-actions');
+    const translateButton = createElement('button', 'menu_button wip-translate-content-button', '번역');
+    translateButton.type = 'button';
+    actions.append(translateButton);
+
+    const grid = createElement('div', 'wip-content-translation-grid');
+    const originalPane = createElement('div', 'wip-content-translation-pane wip-content-original-pane');
+    const resultPane = createElement('div', 'wip-content-translation-pane wip-content-result-pane');
+    const resultLabel = createElement('small', 'wip-content-translation-label', '번역문');
+    const resultTextarea = createElement('textarea', 'text_pole textarea_compact wip-content-translation-output');
+    resultTextarea.readOnly = true;
+    resultTextarea.placeholder = '번역 결과';
+    resultPane.hidden = true;
+    resultPane.append(resultLabel, resultTextarea);
+
+    contentBlock.replaceWith(grid);
+    originalPane.append(contentBlock);
+    grid.append(originalPane, resultPane);
+    panel.insertBefore(actions, grid);
+
+    translateButton.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        runButtonTask(translateButton, '번역 중...', async () => {
+            const text = textarea.value || '';
+            if (!text.trim()) {
+                notify('warning', '본문이 비어 있습니다.');
+                return;
+            }
+
+            const translated = await translateText(text);
+            resultTextarea.value = translated;
+            resultPane.hidden = false;
+            grid.classList.add('wip-content-translation-active');
+        });
+    });
+}
+
+function ensureKeywordTranslationTools(entry, panel, keywordsBlock) {
+    if (!entry || !panel || !keywordsBlock || panel.querySelector(':scope > .wip-keyword-tools')) return;
+
+    const tools = createElement('div', 'wip-keyword-tools');
+    const translateButton = createElement('button', 'menu_button wip-keyword-tool-button', '키워드 번역');
+    const recommendButton = createElement('button', 'menu_button wip-keyword-tool-button', 'AI 키워드 추천');
+    translateButton.type = 'button';
+    recommendButton.type = 'button';
+    tools.append(translateButton, recommendButton);
+    keywordsBlock.insertAdjacentElement('afterend', tools);
+
+    translateButton.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        runButtonTask(translateButton, '번역 중...', async () => {
+            const primary = getKeywordValues(entry, 'key');
+            const secondary = getKeywordValues(entry, 'keysecondary');
+            const translatedPrimary = await translateKeywordList(primary);
+            const translatedSecondary = await translateKeywordList(secondary);
+            const addedPrimary = appendKeywordsToEntry(entry, 'key', translatedPrimary);
+            const addedSecondary = appendKeywordsToEntry(entry, 'keysecondary', translatedSecondary);
+            const addedTotal = addedPrimary + addedSecondary;
+
+            notify(addedTotal ? 'success' : 'warning', addedTotal
+                ? `번역 키워드 ${addedTotal}개를 추가했습니다.`
+                : '추가할 번역 키워드가 없습니다.');
+        });
+    });
+
+    recommendButton.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        runButtonTask(recommendButton, '추천 중...', async () => {
+            const recommendations = await recommendKeywords(entry);
+            const addedPrimary = appendKeywordsToEntry(entry, 'key', recommendations.primary);
+            const addedSecondary = appendKeywordsToEntry(entry, 'keysecondary', recommendations.secondary);
+            const addedTotal = addedPrimary + addedSecondary;
+
+            notify(addedTotal ? 'success' : 'warning', addedTotal
+                ? `추천 키워드 ${addedTotal}개를 추가했습니다.`
+                : '추가할 추천 키워드가 없습니다.');
+        });
+    });
+}
+
+function getEntryPanel(edit, tabId) {
+    return edit?.querySelector(`:scope > .wip-entry-tabs .wip-entry-tabpanel[data-tab-id="${tabId}"]`) || null;
+}
+
+function ensureEntryEnhancements(entry, edit) {
+    const contentPanel = getEntryPanel(edit, 'content');
+    const activationPanel = getEntryPanel(edit, 'activation');
+    const contentBlock = contentPanel?.querySelector('[name="contentAndCharFilterBlock"]')
+        || edit?.querySelector('[name="contentAndCharFilterBlock"]');
+    const keywordsBlock = activationPanel?.querySelector('[name="keywordsAndLogicBlock"]')
+        || edit?.querySelector('[name="keywordsAndLogicBlock"]');
+
+    ensureContentTranslationTools(contentPanel, contentBlock);
+    ensureKeywordTranslationTools(entry, activationPanel, keywordsBlock);
+}
+
 function getEntryHeaderControls(entry) {
     return entry.querySelector(':scope .world_entry_form > .inline-drawer > .inline-drawer-header .WIEnteryHeaderControls')
         || entry.querySelector(':scope .WIEnteryHeaderControls');
@@ -1130,10 +1783,12 @@ function arrangeEntryTabContent(entry, edit, panels) {
     const additionalMatchingSources = edit.querySelector(':scope > .inline-drawer');
 
     appendNodeIfPresent(panels.content, contentBlock);
+    ensureContentTranslationTools(panels.content, contentBlock);
     appendNodeIfPresent(panels.content, commentContainer);
 
     appendNodeIfPresent(panels.activation, getEntryHeaderControls(entry));
     appendNodeIfPresent(panels.activation, keywordsBlock);
+    ensureKeywordTranslationTools(entry, panels.activation, keywordsBlock);
     appendNodeIfPresent(panels.activation, perEntryOverridesBlock);
     appendNodeIfPresent(panels.activation, bottomControls);
 
@@ -1151,6 +1806,7 @@ function ensureEntryTabs(entry) {
 
     if (edit.dataset.wipTabs === 'true') {
         moveEntryInsertionControlsToTab(entry, edit);
+        ensureEntryEnhancements(entry, edit);
         return true;
     }
 
@@ -1158,6 +1814,7 @@ function ensureEntryTabs(entry) {
     arrangeEntryTabContent(entry, edit, panels);
     edit.dataset.wipTabs = 'true';
     moveEntryInsertionControlsToTab(entry, edit);
+    ensureEntryEnhancements(entry, edit);
     setEntryActiveTab(edit, 'content');
     return true;
 }
@@ -1544,6 +2201,8 @@ function observeEntriesList(entriesList) {
 }
 
 function mount() {
+    installSettingsPanel();
+
     if (document.querySelector('#worldinfo-plus-root')) return;
 
     const worldInfoPanel = document.querySelector('#WorldInfo');
