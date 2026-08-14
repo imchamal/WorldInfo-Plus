@@ -3,6 +3,12 @@ import { loadWorldInfo, saveWorldInfo } from '../../../world-info.js';
 
 const MODULE_NAME = 'worldInfoPlus';
 const UNFILED_ID = '__unfiled';
+const ENTRY_TABS = [
+    { id: 'content', label: '본문' },
+    { id: 'activation', label: '발동·삽입' },
+    { id: 'filters', label: '필터' },
+    { id: 'advanced', label: '고급' },
+];
 
 let root;
 let currentBookName = '';
@@ -13,6 +19,8 @@ let organizeTimer = null;
 let loadTimer = null;
 let entriesObserver = null;
 let entryMoveMenu = null;
+let entryTabIdCounter = 0;
+const entryTabOpenHandlers = new WeakSet();
 
 function createElement(tag, className = '', text = '') {
     const element = document.createElement(tag);
@@ -903,6 +911,227 @@ function ensureEntryMoveButton(entry) {
     }
 }
 
+function appendNodeIfPresent(target, node) {
+    if (!target || !node) return false;
+    target.append(node);
+    return true;
+}
+
+function appendControlGroup(target, rootElement, fieldNames) {
+    if (!target || !rootElement) return;
+
+    const appended = new Set();
+
+    for (const fieldName of fieldNames) {
+        const field = rootElement.querySelector(`[name="${fieldName}"]`);
+        const control = field?.closest('.world_entry_form_control, .flex4, .flex2, label.checkbox, label.checkbox_label');
+        if (!control || appended.has(control)) continue;
+
+        target.append(control);
+        appended.add(control);
+    }
+}
+
+function appendGroupIfNotEmpty(target, group) {
+    if (!target || !group || !group.childElementCount) return;
+    target.append(group);
+}
+
+function getFieldWideRow(rootElement, fieldName) {
+    const field = rootElement?.querySelector(`[name="${fieldName}"]`);
+    return field?.closest('.flex-container.wide100p.flexGap10') || null;
+}
+
+function getRecursionOptions(contentBlock) {
+    const recursionField = contentBlock?.querySelector('[name="excludeRecursion"]');
+    const column = recursionField?.closest('.flex-container.flexFlowColumn');
+    const group = column?.parentElement;
+
+    if (!group || !group.querySelector('[name="preventRecursion"], [name="delay_until_recursion"], [name="ignoreBudget"]')) {
+        return null;
+    }
+
+    group.classList.add('wip-entry-recursion-options');
+    return group;
+}
+
+function createEntryTabLayout(entry, edit) {
+    const uid = getEntryUid(entry) || 'new';
+    const baseId = `wip-entry-${uid}-${++entryTabIdCounter}`;
+    const tabsRoot = createElement('div', 'wip-entry-tabs');
+    const tabList = createElement('div', 'wip-entry-tablist');
+    const panelsRoot = createElement('div', 'wip-entry-tabpanels');
+    const panels = {};
+
+    tabList.setAttribute('role', 'tablist');
+    tabList.setAttribute('aria-label', '로어북 엔트리 편집');
+
+    for (const tab of ENTRY_TABS) {
+        const tabId = `${baseId}-${tab.id}-tab`;
+        const panelId = `${baseId}-${tab.id}-panel`;
+        const button = createElement('button', 'wip-entry-tab', tab.label);
+        const panel = createElement('section', 'wip-entry-tabpanel');
+
+        button.type = 'button';
+        button.id = tabId;
+        button.dataset.tabId = tab.id;
+        button.setAttribute('role', 'tab');
+        button.setAttribute('aria-controls', panelId);
+        button.setAttribute('aria-selected', 'false');
+        button.tabIndex = -1;
+        button.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            setEntryActiveTab(edit, tab.id);
+        });
+        button.addEventListener('keydown', handleEntryTabKeydown);
+
+        panel.id = panelId;
+        panel.dataset.tabId = tab.id;
+        panel.setAttribute('role', 'tabpanel');
+        panel.setAttribute('aria-labelledby', tabId);
+        panel.hidden = true;
+
+        tabList.append(button);
+        panelsRoot.append(panel);
+        panels[tab.id] = panel;
+    }
+
+    tabsRoot.append(tabList, panelsRoot);
+    edit.prepend(tabsRoot);
+    return panels;
+}
+
+function setEntryActiveTab(edit, activeTabId) {
+    const tabs = Array.from(edit.querySelectorAll(':scope > .wip-entry-tabs .wip-entry-tab'));
+    const panels = Array.from(edit.querySelectorAll(':scope > .wip-entry-tabs .wip-entry-tabpanel'));
+
+    for (const tab of tabs) {
+        const isActive = tab.dataset.tabId === activeTabId;
+        tab.setAttribute('aria-selected', String(isActive));
+        tab.tabIndex = isActive ? 0 : -1;
+    }
+
+    for (const panel of panels) {
+        panel.hidden = panel.dataset.tabId !== activeTabId;
+    }
+}
+
+function handleEntryTabKeydown(event) {
+    const handledKeys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!handledKeys.includes(event.key)) return;
+
+    const tabList = event.currentTarget.closest('.wip-entry-tablist');
+    const tabs = Array.from(tabList?.querySelectorAll('.wip-entry-tab') ?? []);
+    const currentIndex = tabs.indexOf(event.currentTarget);
+    if (currentIndex === -1) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    let nextIndex = currentIndex;
+    if (event.key === 'ArrowLeft') {
+        nextIndex = currentIndex === 0 ? tabs.length - 1 : currentIndex - 1;
+    } else if (event.key === 'ArrowRight') {
+        nextIndex = currentIndex === tabs.length - 1 ? 0 : currentIndex + 1;
+    } else if (event.key === 'Home') {
+        nextIndex = 0;
+    } else if (event.key === 'End') {
+        nextIndex = tabs.length - 1;
+    }
+
+    tabs[nextIndex]?.focus();
+    tabs[nextIndex]?.click();
+}
+
+function arrangeEntryTabContent(entry, edit, panels) {
+    const contentBlock = edit.querySelector('[name="contentAndCharFilterBlock"]');
+    const commentContainer = edit.querySelector('.commentContainer');
+    const recursionOptions = getRecursionOptions(contentBlock);
+    const keywordsBlock = edit.querySelector('[name="keywordsAndLogicBlock"]');
+    const perEntryOverridesBlock = edit.querySelector('[name="perEntryOverridesBlock"]');
+    const insertionGroup = createElement('div', 'wip-entry-field-grid wip-entry-insertion-grid');
+    const matchingGroup = createElement('div', 'wip-entry-field-grid wip-entry-matching-grid');
+    const advancedGroup = createElement('div', 'wip-entry-field-grid wip-entry-advanced-grid');
+    const bottomControls = edit.querySelector('[name="WIEntryBottomControls"]');
+    const groupRow = getFieldWideRow(edit, 'group');
+    const filtersRow = getFieldWideRow(edit, 'characterFilter');
+    const additionalMatchingSources = edit.querySelector(':scope > .inline-drawer');
+
+    appendNodeIfPresent(panels.content, contentBlock);
+    appendNodeIfPresent(panels.content, commentContainer);
+
+    appendNodeIfPresent(panels.activation, keywordsBlock);
+    appendControlGroup(insertionGroup, entry, ['position', 'depth', 'order', 'probability']);
+    appendGroupIfNotEmpty(panels.activation, insertionGroup);
+    appendControlGroup(matchingGroup, edit, ['outletName', 'scanDepth', 'caseSensitive', 'matchWholeWords']);
+    appendGroupIfNotEmpty(panels.activation, matchingGroup);
+    appendNodeIfPresent(panels.activation, bottomControls);
+
+    appendNodeIfPresent(panels.filters, filtersRow);
+    appendNodeIfPresent(panels.filters, additionalMatchingSources);
+
+    appendNodeIfPresent(panels.advanced, groupRow);
+    appendControlGroup(advancedGroup, edit, ['useGroupScoring', 'automationId', 'delayUntilRecursionLevel']);
+    appendGroupIfNotEmpty(panels.advanced, advancedGroup);
+    appendNodeIfPresent(panels.advanced, recursionOptions);
+    appendGroupIfNotEmpty(panels.advanced, perEntryOverridesBlock);
+}
+
+function ensureEntryTabs(entry) {
+    const edit = entry.querySelector(':scope .world_entry_edit');
+    if (!edit) return false;
+
+    if (edit.dataset.wipTabs === 'true') {
+        return true;
+    }
+
+    const panels = createEntryTabLayout(entry, edit);
+    arrangeEntryTabContent(entry, edit, panels);
+    edit.dataset.wipTabs = 'true';
+    setEntryActiveTab(edit, 'content');
+    return true;
+}
+
+function scheduleEnsureEntryTabs(entry, attempts = 6) {
+    setTimeout(() => {
+        if (ensureEntryTabs(entry)) return;
+        if (attempts > 1) {
+            scheduleEnsureEntryTabs(entry, attempts - 1);
+        }
+    }, 50);
+}
+
+function bindEntryTabOpenHandler(entry) {
+    if (entryTabOpenHandlers.has(entry)) return;
+
+    const toggle = entry.querySelector(':scope .world_entry_form > .inline-drawer > .inline-drawer-header .inline-drawer-toggle');
+    if (!toggle) return;
+
+    entryTabOpenHandlers.add(entry);
+    toggle.addEventListener('click', () => {
+        scheduleEnsureEntryTabs(entry);
+        setTimeout(() => {
+            const edit = entry.querySelector(':scope .world_entry_edit[data-wip-tabs="true"]');
+            if (edit) {
+                setEntryActiveTab(edit, 'content');
+            }
+        }, 80);
+    });
+}
+
+function nodeContainsEntryEdit(node) {
+    return node.nodeType === Node.ELEMENT_NODE
+        && (node.matches?.('.world_entry_edit') || node.querySelector?.('.world_entry_edit'));
+}
+
+function ensureEntryTabsInList(entriesList) {
+    for (const entry of collectRenderedEntries(entriesList)) {
+        bindEntryTabOpenHandler(entry);
+        ensureEntryTabs(entry);
+    }
+}
+
 function collectRenderedEntries(entriesList) {
     return Array.from(entriesList.querySelectorAll('.world_entry'))
         .filter(entry => !entry.closest('#entry_edit_template'))
@@ -1008,6 +1237,8 @@ function renderFolder(folder, entries, isUnfiled = false) {
     for (const entry of entries) {
         ensureEntryFolderHandle(entry);
         ensureEntryMoveButton(entry);
+        bindEntryTabOpenHandler(entry);
+        ensureEntryTabs(entry);
         entryList.append(entry);
     }
 
@@ -1219,16 +1450,25 @@ function renderData() {
 
 function observeEntriesList(entriesList) {
     entriesObserver?.disconnect();
-    entriesObserver = new MutationObserver(() => {
+    entriesObserver = new MutationObserver(mutations => {
         if (isOrganizing) return;
         if (!isCurrentBookSelected()) {
             scheduleLoadSelectedBook();
             return;
         }
 
-        scheduleRenderData();
+        const hasEntryListChange = mutations.some(mutation => mutation.target === entriesList);
+        const hasEntryEditChange = mutations.some(mutation => Array.from(mutation.addedNodes).some(nodeContainsEntryEdit));
+
+        if (hasEntryEditChange) {
+            ensureEntryTabsInList(entriesList);
+        }
+
+        if (hasEntryListChange) {
+            scheduleRenderData();
+        }
     });
-    entriesObserver.observe(entriesList, { childList: true });
+    entriesObserver.observe(entriesList, { childList: true, subtree: true });
 }
 
 function mount() {

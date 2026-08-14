@@ -348,3 +348,113 @@
     opacity: 0.75;
     font-size: 0.9em;
 }
+
+.wip-entry-tabs {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.wip-entry-tablist {
+    display: flex;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+}
+
+.wip-entry-tab {
+    min-height: 30px;
+    padding: 4px 10px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+    cursor: pointer;
+    font: inherit;
+    line-height: 1.2;
+}
+
+.wip-entry-tab:hover,
+.wip-entry-tab[aria-selected="true"] {
+    border-color: var(--SmartThemeBorderColor);
+    background: var(--black30a);
+}
+
+.wip-entry-tab:focus-visible {
+    outline: 2px solid var(--SmartThemeQuoteColor);
+    outline-offset: 2px;
+}
+
+.wip-entry-tabpanels,
+.wip-entry-tabpanel {
+    width: 100%;
+}
+
+.wip-entry-tabpanel[hidden] {
+    display: none;
+}
+
+.wip-entry-tabpanel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.wip-entry-field-grid {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 8px;
+    align-items: end;
+}
+
+.wip-entry-insertion-grid {
+    grid-template-columns: minmax(220px, 2fr) repeat(auto-fit, minmax(110px, 1fr));
+}
+
+.wip-entry-tabpanel [name="keywordsAndLogicBlock"],
+.wip-entry-tabpanel > .flex-container.wide100p.flexGap10,
+.wip-entry-tabpanel [name="WIEntryBottomControls"] {
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 8px;
+}
+
+.wip-entry-tabpanel [name="WIEntryBottomControls"] {
+    justify-content: flex-start;
+}
+
+.wip-entry-tabpanel [name="WIEntryBottomControls"] .wi-enter-footer-text {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.wip-entry-tabpanel > .flex-container.wide100p.flexGap10 > .flex4,
+.wip-entry-tabpanel > .flex-container.wide100p.flexGap10 > .flex2 {
+    min-width: min(220px, 100%);
+    flex: 1 1 220px;
+}
+
+.wip-entry-tabpanel [name="contentAndCharFilterBlock"],
+.wip-entry-tabpanel .world_entry_form_control,
+.wip-entry-tabpanel > .inline-drawer {
+    width: 100%;
+}
+
+.wip-entry-tabpanel textarea[name="content"] {
+    min-height: 240px;
+}
+
+.wip-entry-recursion-options {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 12px;
+}
+
+.WIEnteryHeaderControls:empty {
+    display: none;
+}
