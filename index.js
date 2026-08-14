@@ -9,7 +9,6 @@ const ENTRY_TABS = [
     { id: 'filters', label: '필터' },
     { id: 'advanced', label: '고급' },
 ];
-const ENTRY_INSERTION_FIELDS = ['position', 'depth', 'order', 'probability'];
 
 let root;
 let currentBookName = '';
@@ -918,64 +917,29 @@ function appendNodeIfPresent(target, node) {
     return true;
 }
 
-function appendControlGroup(target, rootElement, fieldNames) {
-    if (!target || !rootElement) return;
-
-    const appended = new Set();
-
-    for (const fieldName of fieldNames) {
-        const field = rootElement.querySelector(`[name="${fieldName}"]`);
-        const control = field?.closest('.world_entry_form_control, .flex4, .flex2, label.checkbox, label.checkbox_label');
-        if (!control || appended.has(control)) continue;
-
-        target.append(control);
-        appended.add(control);
-    }
-}
-
-function appendGroupIfNotEmpty(target, group) {
-    if (!target || !group || !group.childElementCount) return;
-    target.append(group);
-}
-
 function getEntryHeaderControls(entry) {
     return entry.querySelector(':scope .world_entry_form > .inline-drawer > .inline-drawer-header .WIEnteryHeaderControls')
         || entry.querySelector(':scope .WIEnteryHeaderControls');
 }
 
-function getControlForField(rootElement, fieldName) {
-    const field = rootElement?.querySelector(`[name="${fieldName}"]`);
-    return field?.closest('.world_entry_form_control, .flex4, .flex2, label.checkbox, label.checkbox_label') || null;
+function getEntryHeader(entry) {
+    return entry.querySelector(':scope .world_entry_form > .inline-drawer > .inline-drawer-header')
+        || entry.querySelector(':scope .inline-drawer-header');
 }
 
 function restoreEntryInsertionControls(entry) {
+    const header = getEntryHeader(entry);
     const headerControls = getEntryHeaderControls(entry);
-    if (!headerControls) return;
-
-    for (const fieldName of ENTRY_INSERTION_FIELDS) {
-        const control = getControlForField(entry, fieldName);
-        if (!control || headerControls.contains(control)) continue;
-        headerControls.append(control);
-    }
-}
-
-function getEntryInsertionGroup(edit) {
-    return edit?.querySelector(':scope > .wip-entry-tabs .wip-entry-insertion-grid') || null;
+    if (!header || !headerControls || header.contains(headerControls)) return;
+    header.append(headerControls);
 }
 
 function moveEntryInsertionControlsToTab(entry, edit) {
     const activationPanel = edit?.querySelector(':scope > .wip-entry-tabs .wip-entry-tabpanel[data-tab-id="activation"]');
+    const headerControls = getEntryHeaderControls(entry);
     if (!activationPanel) return;
-
-    let insertionGroup = getEntryInsertionGroup(edit);
-    if (!insertionGroup) {
-        insertionGroup = createElement('div', 'wip-entry-field-grid wip-entry-insertion-grid');
-        activationPanel.prepend(insertionGroup);
-    }
-
-    appendControlGroup(insertionGroup, entry, ENTRY_INSERTION_FIELDS);
-    if (!insertionGroup.childElementCount) {
-        insertionGroup.remove();
+    if (headerControls && !activationPanel.contains(headerControls)) {
+        activationPanel.prepend(headerControls);
     }
 }
 
@@ -1092,9 +1056,6 @@ function arrangeEntryTabContent(entry, edit, panels) {
     const recursionOptions = getRecursionOptions(contentBlock);
     const keywordsBlock = edit.querySelector('[name="keywordsAndLogicBlock"]');
     const perEntryOverridesBlock = edit.querySelector('[name="perEntryOverridesBlock"]');
-    const insertionGroup = createElement('div', 'wip-entry-field-grid wip-entry-insertion-grid');
-    const matchingGroup = createElement('div', 'wip-entry-field-grid wip-entry-matching-grid');
-    const advancedGroup = createElement('div', 'wip-entry-field-grid wip-entry-advanced-grid');
     const bottomControls = edit.querySelector('[name="WIEntryBottomControls"]');
     const groupRow = getFieldWideRow(edit, 'group');
     const filtersRow = getFieldWideRow(edit, 'characterFilter');
@@ -1103,21 +1064,16 @@ function arrangeEntryTabContent(entry, edit, panels) {
     appendNodeIfPresent(panels.content, contentBlock);
     appendNodeIfPresent(panels.content, commentContainer);
 
-    appendControlGroup(insertionGroup, entry, ENTRY_INSERTION_FIELDS);
-    appendGroupIfNotEmpty(panels.activation, insertionGroup);
+    appendNodeIfPresent(panels.activation, getEntryHeaderControls(entry));
     appendNodeIfPresent(panels.activation, keywordsBlock);
-    appendControlGroup(matchingGroup, edit, ['outletName', 'scanDepth', 'caseSensitive', 'matchWholeWords']);
-    appendGroupIfNotEmpty(panels.activation, matchingGroup);
+    appendNodeIfPresent(panels.activation, perEntryOverridesBlock);
     appendNodeIfPresent(panels.activation, bottomControls);
 
     appendNodeIfPresent(panels.filters, filtersRow);
     appendNodeIfPresent(panels.filters, additionalMatchingSources);
 
     appendNodeIfPresent(panels.advanced, groupRow);
-    appendControlGroup(advancedGroup, edit, ['useGroupScoring', 'automationId', 'delayUntilRecursionLevel']);
-    appendGroupIfNotEmpty(panels.advanced, advancedGroup);
     appendNodeIfPresent(panels.advanced, recursionOptions);
-    appendGroupIfNotEmpty(panels.advanced, perEntryOverridesBlock);
 }
 
 function ensureEntryTabs(entry) {

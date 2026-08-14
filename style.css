@@ -407,79 +407,9 @@
     gap: 8px;
 }
 
-.wip-entry-field-grid {
-    display: grid;
-    width: 100%;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 8px;
-    align-items: end;
-}
-
-.wip-entry-insertion-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(64px, 90px) minmax(64px, 90px) minmax(78px, 110px);
-}
-
-.wip-entry-matching-grid {
-    grid-template-columns: minmax(72px, 120px) minmax(0, 1fr) minmax(0, 1fr);
-}
-
-.wip-entry-tabpanel [name="keywordsAndLogicBlock"],
-.wip-entry-tabpanel > .flex-container.wide100p.flexGap10,
-.wip-entry-tabpanel [name="WIEntryBottomControls"] {
-    flex-wrap: wrap;
-    align-items: end;
-    gap: 8px;
-}
-
-.wip-entry-tabpanel [name="WIEntryBottomControls"] {
-    justify-content: flex-start;
-}
-
-.wip-entry-tabpanel [name="WIEntryBottomControls"] .wi-enter-footer-text {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-.wip-entry-tabpanel > .flex-container.wide100p.flexGap10 > .flex4,
-.wip-entry-tabpanel > .flex-container.wide100p.flexGap10 > .flex2 {
-    min-width: min(220px, 100%);
-    flex: 1 1 220px;
-}
-
 .wip-entry-tabpanel [name="contentAndCharFilterBlock"],
-.wip-entry-tabpanel [name="contentAndCharFilterBlock"] > .world_entry_form_control,
-.wip-entry-field-grid > .world_entry_form_control,
 .wip-entry-tabpanel > .inline-drawer {
     width: 100%;
-}
-
-.wip-entry-tabpanel [name="keywordsAndLogicBlock"] > .keyprimary,
-.wip-entry-tabpanel [name="keywordsAndLogicBlock"] > .keysecondary {
-    min-width: 0;
-    flex: 1 1 0;
-}
-
-.wip-entry-tabpanel [name="keywordsAndLogicBlock"] > .world_entry_form_control:not(.keyprimary):not(.keysecondary) {
-    width: clamp(120px, 14%, 180px);
-    min-width: 120px;
-    max-width: 180px;
-    flex: 0 0 clamp(120px, 14%, 180px);
-}
-
-.wip-entry-tabpanel [name="keywordsAndLogicBlock"] .select2-container,
-.wip-entry-tabpanel [name="keywordsAndLogicBlock"] .keyselect,
-.wip-entry-tabpanel [name="keywordsAndLogicBlock"] textarea,
-.wip-entry-tabpanel [name="keywordsAndLogicBlock"] select {
-    max-width: 100%;
-}
-
-.wip-entry-tabpanel [name="keywordsAndLogicBlock"] .keyprimaryselect,
-.wip-entry-tabpanel [name="keywordsAndLogicBlock"] .keysecondaryselect,
-.wip-entry-tabpanel [name="keywordsAndLogicBlock"] .keyprimarytextpole,
-.wip-entry-tabpanel [name="keywordsAndLogicBlock"] .keysecondarytextpole {
-    width: 100% !important;
-    box-sizing: border-box;
 }
 
 .wip-entry-tabpanel textarea[name="content"] {
@@ -494,10 +424,4 @@
 
 .WIEnteryHeaderControls:empty {
     display: none;
-}
-
-@media (min-width: 900px) {
-    .wip-entry-tabpanel [name="keywordsAndLogicBlock"] {
-        flex-wrap: nowrap;
-    }
 }
