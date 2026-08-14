@@ -110,8 +110,12 @@
     flex: 0 0 auto;
 }
 
+.wip-entry-menu-anchor {
+    position: relative;
+}
+
 .wip-entry-move-menu {
-    position: fixed;
+    position: absolute;
     z-index: 50001;
     display: flex;
     min-width: 180px;
@@ -200,6 +204,10 @@
     font-weight: 700;
 }
 
+.wip-manage-dialog {
+    width: min(720px, calc(100vw - 32px));
+}
+
 .wip-folder-input {
     width: 100%;
 }
@@ -210,10 +218,26 @@
 }
 
 .wip-dialog-select-row,
+.wip-dialog-control-row,
 .wip-dialog-footer {
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.wip-dialog-control-row {
+    width: 100%;
+}
+
+.wip-dialog-row-label {
+    min-width: 72px;
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.wip-dialog-select {
+    min-width: 0;
+    flex: 1;
 }
 
 .wip-dialog-select-row {

@@ -186,6 +186,56 @@ function getUnfiledEntries(data, store) {
         });
 }
 
+function getFolderOptions(store) {
+    return [
+        { id: UNFILED_ID, name: 'Unfiled' },
+        ...getOrderedFolders(store).map(folder => ({ id: folder.id, name: folder.name })),
+    ];
+}
+
+function getFolderDisplayName(store, folderId) {
+    if (folderId === UNFILED_ID) return 'Unfiled';
+    return store.folders.find(folder => folder.id === folderId)?.name || 'Unknown folder';
+}
+
+function orderDataEntries(entries, folderId, store) {
+    const order = store.entryOrder[folderId] ?? [];
+    const index = new Map(order.map((uid, position) => [String(uid), position]));
+    const getSortIndex = entry => {
+        const value = Number(entry.displayIndex ?? entry.order ?? entry.uid);
+        return Number.isFinite(value) ? value : Number(entry.uid);
+    };
+
+    return [...entries].sort((a, b) => {
+        const aUid = String(a.uid);
+        const bUid = String(b.uid);
+        const aIndex = index.has(aUid) ? index.get(aUid) : Number.MAX_SAFE_INTEGER;
+        const bIndex = index.has(bUid) ? index.get(bUid) : Number.MAX_SAFE_INTEGER;
+        if (aIndex !== bIndex) return aIndex - bIndex;
+
+        const aFallback = getSortIndex(a);
+        const bFallback = getSortIndex(b);
+        if (aFallback !== bFallback) return aFallback - bFallback;
+
+        return Number(a.uid) - Number(b.uid);
+    });
+}
+
+function getEntriesInFolder(data, store, folderId) {
+    const folderIds = new Set(store.folders.map(folder => folder.id));
+    const entries = Object.values(data.entries ?? {}).filter(entry => {
+        const assignedFolderId = store.entryFolders[String(entry.uid)];
+
+        if (folderId === UNFILED_ID) {
+            return !assignedFolderId || !folderIds.has(assignedFolderId);
+        }
+
+        return assignedFolderId === folderId;
+    });
+
+    return orderDataEntries(entries, folderId, store);
+}
+
 function closeDialog(dialog, result) {
     dialog.remove();
     return result;
@@ -205,25 +255,44 @@ function handleEntryMoveMenuOutsideClick(event) {
     closeEntryMoveMenu();
 }
 
-function positionEntryMoveMenu(button, menu) {
+function getEntryMoveMenuContainer() {
+    const worldInfoPanel = document.querySelector('#WorldInfo');
+    if (!worldInfoPanel) return document.body;
+
+    if (getComputedStyle(worldInfoPanel).position === 'static') {
+        worldInfoPanel.classList.add('wip-entry-menu-anchor');
+    }
+
+    return worldInfoPanel;
+}
+
+function positionEntryMoveMenu(button, menu, container) {
     const margin = 8;
     const gap = 4;
     const buttonRect = button.getBoundingClientRect();
     const menuRect = menu.getBoundingClientRect();
     const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
     const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
-    const maxLeft = viewportWidth - menuRect.width - margin;
-    const maxTop = viewportHeight - menuRect.height - margin;
+    const isBody = container === document.body;
+    const containerRect = isBody
+        ? { top: 0, left: 0 }
+        : container.getBoundingClientRect();
+    const scrollLeft = isBody ? window.scrollX : container.scrollLeft;
+    const scrollTop = isBody ? window.scrollY : container.scrollTop;
+    const visibleWidth = isBody ? viewportWidth : container.clientWidth;
+    const visibleHeight = isBody ? viewportHeight : container.clientHeight;
+    const maxLeft = Math.max(scrollLeft + margin, scrollLeft + visibleWidth - menuRect.width - margin);
+    const maxTop = Math.max(scrollTop + margin, scrollTop + visibleHeight - menuRect.height - margin);
 
-    let left = buttonRect.right - menuRect.width;
-    let top = buttonRect.bottom + gap;
+    let left = buttonRect.right - containerRect.left + scrollLeft - menuRect.width;
+    let top = buttonRect.bottom - containerRect.top + scrollTop + gap;
 
-    if (top + menuRect.height > viewportHeight - margin) {
-        top = buttonRect.top - menuRect.height - gap;
+    if (top - scrollTop + menuRect.height > visibleHeight - margin) {
+        top = buttonRect.top - containerRect.top + scrollTop - menuRect.height - gap;
     }
 
-    menu.style.left = `${Math.max(margin, Math.min(left, maxLeft))}px`;
-    menu.style.top = `${Math.max(margin, Math.min(top, maxTop))}px`;
+    menu.style.left = `${Math.max(scrollLeft + margin, Math.min(left, maxLeft))}px`;
+    menu.style.top = `${Math.max(scrollTop + margin, Math.min(top, maxTop))}px`;
 }
 
 function showCreateFolderDialog(defaultName, unfiledEntries) {
@@ -352,6 +421,197 @@ function showCreateFolderDialog(defaultName, unfiledEntries) {
     });
 }
 
+function showFolderManageDialog(initialFolderId) {
+    return new Promise(resolve => {
+        const store = ensureStore(currentData);
+        const folderOptions = getFolderOptions(store);
+        const initialOption = folderOptions.some(option => option.id === initialFolderId)
+            ? initialFolderId
+            : UNFILED_ID;
+
+        const overlay = createElement('div', 'wip-dialog-overlay');
+        const dialog = createElement('div', 'wip-dialog wip-manage-dialog');
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+
+        const title = createElement('div', 'wip-dialog-title', '폴더 관리');
+
+        const sourceRow = createElement('label', 'wip-dialog-control-row');
+        const sourceLabel = createElement('span', 'wip-dialog-row-label', '현재 폴더');
+        const sourceSelect = createElement('select', 'text_pole textarea_compact wip-dialog-select');
+        sourceRow.append(sourceLabel, sourceSelect);
+
+        const targetRow = createElement('label', 'wip-dialog-control-row');
+        const targetLabel = createElement('span', 'wip-dialog-row-label', '이동 대상');
+        const targetSelect = createElement('select', 'text_pole textarea_compact wip-dialog-select');
+        targetRow.append(targetLabel, targetSelect);
+
+        const selectAllRow = createElement('label', 'wip-dialog-select-row');
+        const selectAllCheckbox = createElement('input');
+        selectAllCheckbox.type = 'checkbox';
+        const summary = createElement('span', 'wip-dialog-summary');
+        selectAllRow.append(selectAllCheckbox, summary);
+
+        const list = createElement('div', 'wip-dialog-entry-list');
+        const footer = createElement('div', 'wip-dialog-footer');
+        const cancelButton = createElement('button', 'menu_button', '취소');
+        const moveButton = createElement('button', 'menu_button', '선택 이동');
+        cancelButton.type = 'button';
+        moveButton.type = 'button';
+        footer.append(cancelButton, moveButton);
+
+        let entryCheckboxes = [];
+
+        const finish = result => {
+            document.removeEventListener('keydown', onKeyDown);
+            resolve(closeDialog(overlay, result));
+        };
+
+        const getSelectedUids = () => entryCheckboxes
+            .filter(checkbox => checkbox.checked)
+            .map(checkbox => checkbox.value);
+
+        const updateSelectAllState = () => {
+            const checkedCount = entryCheckboxes.filter(checkbox => checkbox.checked).length;
+            selectAllCheckbox.disabled = !entryCheckboxes.length;
+            selectAllCheckbox.checked = !!entryCheckboxes.length && checkedCount === entryCheckboxes.length;
+            selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < entryCheckboxes.length;
+            moveButton.disabled = checkedCount === 0 || !targetSelect.value || targetSelect.value === sourceSelect.value;
+        };
+
+        const fillSourceOptions = () => {
+            sourceSelect.replaceChildren();
+
+            for (const option of folderOptions) {
+                const element = document.createElement('option');
+                element.value = option.id;
+                element.textContent = option.name;
+                sourceSelect.append(element);
+            }
+
+            sourceSelect.value = initialOption;
+        };
+
+        const fillTargetOptions = () => {
+            const previousValue = targetSelect.value;
+            const availableOptions = folderOptions.filter(option => option.id !== sourceSelect.value);
+            targetSelect.replaceChildren();
+
+            if (!availableOptions.length) {
+                const emptyOption = document.createElement('option');
+                emptyOption.value = '';
+                emptyOption.textContent = '이동할 폴더 없음';
+                targetSelect.append(emptyOption);
+                targetSelect.disabled = true;
+                updateSelectAllState();
+                return;
+            }
+
+            targetSelect.disabled = false;
+
+            for (const option of availableOptions) {
+                const element = document.createElement('option');
+                element.value = option.id;
+                element.textContent = option.name;
+                targetSelect.append(element);
+            }
+
+            targetSelect.value = availableOptions.some(option => option.id === previousValue)
+                ? previousValue
+                : availableOptions[0].id;
+            updateSelectAllState();
+        };
+
+        const renderEntryList = () => {
+            const folderId = sourceSelect.value;
+            const entries = getEntriesInFolder(currentData, ensureStore(currentData), folderId);
+            entryCheckboxes = [];
+            list.replaceChildren();
+            summary.textContent = `${getFolderDisplayName(store, folderId)} 항목 ${entries.length}개`;
+
+            if (!entries.length) {
+                list.append(createElement('div', 'wip-dialog-empty', '이 폴더에는 이동할 항목이 없습니다.'));
+                updateSelectAllState();
+                return;
+            }
+
+            for (const entry of entries) {
+                const uid = String(entry.uid);
+                const row = createElement('label', 'wip-dialog-entry');
+                const checkbox = createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = uid;
+                entryCheckboxes.push(checkbox);
+
+                const text = createElement('span', 'wip-dialog-entry-text');
+                const entryTitle = createElement('span', 'wip-dialog-entry-title', getEntryTitle(entry));
+                const subtitle = getEntrySubtitle(entry);
+                text.append(entryTitle);
+
+                if (subtitle) {
+                    text.append(createElement('span', 'wip-dialog-entry-subtitle', subtitle));
+                }
+
+                checkbox.addEventListener('change', updateSelectAllState);
+                row.append(checkbox, text);
+                list.append(row);
+            }
+
+            updateSelectAllState();
+        };
+
+        function onKeyDown(event) {
+            if (event.key === 'Escape') {
+                event.stopPropagation();
+                finish(null);
+            }
+        }
+
+        for (const eventName of ['pointerdown', 'mousedown', 'mouseup', 'click', 'keydown']) {
+            overlay.addEventListener(eventName, event => {
+                event.stopPropagation();
+            });
+        }
+
+        sourceSelect.addEventListener('change', () => {
+            fillTargetOptions();
+            renderEntryList();
+        });
+
+        targetSelect.addEventListener('change', updateSelectAllState);
+
+        selectAllCheckbox.addEventListener('change', () => {
+            for (const checkbox of entryCheckboxes) {
+                checkbox.checked = selectAllCheckbox.checked;
+            }
+            updateSelectAllState();
+        });
+
+        cancelButton.addEventListener('click', event => {
+            event.stopPropagation();
+            finish(null);
+        });
+
+        moveButton.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            const selectedUids = getSelectedUids();
+            if (!selectedUids.length || !targetSelect.value) return;
+            finish({ selectedUids, targetFolderId: targetSelect.value });
+        });
+
+        document.addEventListener('keydown', onKeyDown);
+        dialog.append(title, sourceRow, targetRow, selectAllRow, list, footer);
+        overlay.append(dialog);
+        (document.querySelector('#WorldInfo') || document.body).append(overlay);
+
+        fillSourceOptions();
+        fillTargetOptions();
+        renderEntryList();
+        sourceSelect.focus();
+    });
+}
+
 async function createFolder() {
     if (!await ensureCurrentDataLoaded()) {
         setStatus('Select a lorebook first.');
@@ -425,6 +685,13 @@ function getEntryUid(element) {
 }
 
 async function moveEntryToFolder(uid, targetFolderId) {
+    await moveEntriesToFolder([uid], targetFolderId);
+}
+
+async function moveEntriesToFolder(uids, targetFolderId) {
+    const normalizedUids = [...new Set(uids.map(uid => String(uid)).filter(Boolean))];
+    if (!normalizedUids.length) return;
+
     if (!isCurrentBookSelected()) {
         scheduleLoadSelectedBook();
         return;
@@ -433,23 +700,51 @@ async function moveEntryToFolder(uid, targetFolderId) {
     syncFromDom();
 
     const store = ensureStore(currentData);
-    const normalizedUid = String(uid);
+    const validFolderIds = new Set(store.folders.map(folder => folder.id));
+    const normalizedTargetFolderId = validFolderIds.has(targetFolderId) ? targetFolderId : UNFILED_ID;
+    const movingUidSet = new Set(normalizedUids);
 
     for (const folderId of Object.keys(store.entryOrder)) {
-        store.entryOrder[folderId] = store.entryOrder[folderId].filter(entryUid => String(entryUid) !== normalizedUid);
+        store.entryOrder[folderId] = store.entryOrder[folderId]
+            .filter(entryUid => !movingUidSet.has(String(entryUid)));
     }
 
-    if (targetFolderId === UNFILED_ID) {
-        delete store.entryFolders[normalizedUid];
-        store.entryOrder[UNFILED_ID].push(normalizedUid);
+    if (normalizedTargetFolderId === UNFILED_ID) {
+        for (const uid of normalizedUids) {
+            delete store.entryFolders[uid];
+        }
+        store.entryOrder[UNFILED_ID].push(...normalizedUids);
     } else {
-        store.entryFolders[normalizedUid] = targetFolderId;
-        store.entryOrder[targetFolderId] = Array.isArray(store.entryOrder[targetFolderId]) ? store.entryOrder[targetFolderId] : [];
-        store.entryOrder[targetFolderId].push(normalizedUid);
+        store.entryOrder[normalizedTargetFolderId] = Array.isArray(store.entryOrder[normalizedTargetFolderId])
+            ? store.entryOrder[normalizedTargetFolderId]
+            : [];
+
+        for (const uid of normalizedUids) {
+            store.entryFolders[uid] = normalizedTargetFolderId;
+        }
+
+        store.entryOrder[normalizedTargetFolderId].push(...normalizedUids);
     }
 
     renderData();
     await saveCurrentData();
+}
+
+async function manageFolderEntries(initialFolderId) {
+    closeEntryMoveMenu();
+
+    if (!await ensureCurrentDataLoaded()) {
+        setStatus('Select a lorebook first.');
+        return;
+    }
+
+    syncFromDom();
+    const store = ensureStore(currentData);
+    const folderExists = initialFolderId === UNFILED_ID || store.folders.some(folder => folder.id === initialFolderId);
+    const result = await showFolderManageDialog(folderExists ? initialFolderId : UNFILED_ID);
+    if (!result) return;
+
+    await moveEntriesToFolder(result.selectedUids, result.targetFolderId);
 }
 
 function showEntryMoveMenu(button, uid) {
@@ -460,6 +755,12 @@ function showEntryMoveMenu(button, uid) {
     const store = ensureStore(currentData);
     const currentFolderId = store.entryFolders[String(uid)] || UNFILED_ID;
     const menu = createElement('div', 'wip-entry-move-menu');
+
+    for (const eventName of ['pointerdown', 'mousedown', 'mouseup', 'click', 'touchstart', 'keydown']) {
+        menu.addEventListener(eventName, event => {
+            event.stopPropagation();
+        });
+    }
 
     const addOption = (folderId, label) => {
         const option = createElement('button', 'wip-entry-move-option');
@@ -490,8 +791,9 @@ function showEntryMoveMenu(button, uid) {
     }
 
     entryMoveMenu = menu;
-    document.body.append(menu);
-    positionEntryMoveMenu(button, menu);
+    const container = getEntryMoveMenuContainer();
+    container.append(menu);
+    positionEntryMoveMenu(button, menu, container);
 
     setTimeout(() => {
         document.addEventListener('pointerdown', handleEntryMoveMenuOutsideClick);
@@ -599,8 +901,15 @@ function renderFolder(folder, entries, isUnfiled = false) {
     name.addEventListener('click', () => toggle.click());
 
     const count = createElement('span', 'wip-folder-count', String(entries.length));
+    const manageButton = createIconButton(
+        '',
+        'fa-list-check',
+        '폴더 항목 관리',
+        () => manageFolderEntries(folder.id),
+    );
+    manageButton.removeAttribute('id');
 
-    header.append(handle, toggle, name, count);
+    header.append(handle, toggle, name, count, manageButton);
 
     if (!isUnfiled) {
         const renameButton = createIconButton(
