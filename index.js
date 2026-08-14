@@ -138,10 +138,13 @@ function bindSettingsProfileEvents() {
 }
 
 function createSettingsField(labelText, control) {
-    const label = createElement('label', 'wip-settings-field');
-    const text = createElement('span', 'wip-settings-label', labelText);
-    label.append(text, control);
-    return label;
+    const wrapper = createElement('div', 'flex-container flexFlowColumn flexNoGap wide100p marginBot5');
+    const label = createElement('label', '', labelText);
+    if (control.id) {
+        label.htmlFor = control.id;
+    }
+    wrapper.append(label, control);
+    return wrapper;
 }
 
 function installSettingsPanel() {
@@ -159,13 +162,16 @@ function installSettingsPanel() {
     }
 
     const settings = ensureSettings();
-    const panel = createElement('div', 'wip-settings');
+    const panel = createElement('div', 'inline-drawer');
     panel.id = 'worldinfo_plus_settings';
 
-    const title = createElement('div', 'wip-settings-title', 'WorldInfo Plus');
-    const grid = createElement('div', 'wip-settings-grid');
+    const header = createElement('div', 'inline-drawer-toggle inline-drawer-header');
+    const title = createElement('b', '', 'WorldInfo Plus');
+    const icon = createElement('div', 'inline-drawer-icon fa-solid fa-circle-chevron-down down');
+    const content = createElement('div', 'inline-drawer-content');
 
     const providerSelect = createElement('select', 'text_pole');
+    providerSelect.id = 'worldinfo_plus_translation_provider';
     const googleOption = document.createElement('option');
     googleOption.value = 'google';
     googleOption.textContent = 'Google 무료 번역';
@@ -176,6 +182,7 @@ function installSettingsPanel() {
     providerSelect.value = settings.translationProvider;
 
     const languageInput = createElement('input', 'text_pole');
+    languageInput.id = 'worldinfo_plus_target_language';
     languageInput.type = 'text';
     languageInput.value = settings.targetLanguage;
     languageInput.placeholder = 'ko';
@@ -191,6 +198,7 @@ function installSettingsPanel() {
     }
 
     const profileSelect = createElement('select', 'text_pole');
+    profileSelect.id = 'worldinfo_plus_profile';
     settingsProfileSelect = profileSelect;
 
     providerSelect.addEventListener('change', () => {
@@ -207,12 +215,13 @@ function installSettingsPanel() {
         saveSettingsDebounced();
     });
 
-    grid.append(
+    content.append(
         createSettingsField('번역 방식', providerSelect),
         createSettingsField('대상 언어', languageInput),
         createSettingsField('연결 프로필', profileSelect),
     );
-    panel.append(title, grid, languageList);
+    header.append(title, icon);
+    panel.append(header, content, languageList);
     settingsContainer.append(panel);
 
     refreshSettingsProfileSelect(profileSelect);
@@ -464,9 +473,15 @@ async function recommendKeywords(entry) {
 }
 
 async function runButtonTask(button, busyText, task) {
-    const previousText = button.textContent;
-    button.disabled = true;
-    button.textContent = busyText;
+    const previousTitle = button.title;
+    const previousAriaLabel = button.getAttribute('aria-label');
+    const supportsDisabled = 'disabled' in button;
+    if (supportsDisabled) {
+        button.disabled = true;
+    }
+    button.classList.add('disabled', 'wip-busy');
+    button.title = busyText;
+    button.setAttribute('aria-label', busyText);
 
     try {
         await task();
@@ -474,8 +489,16 @@ async function runButtonTask(button, busyText, task) {
         console.error('[WorldInfo Plus]', error);
         notify('error', error?.message || String(error));
     } finally {
-        button.disabled = false;
-        button.textContent = previousText;
+        if (supportsDisabled) {
+            button.disabled = false;
+        }
+        button.classList.remove('disabled', 'wip-busy');
+        button.title = previousTitle;
+        if (previousAriaLabel) {
+            button.setAttribute('aria-label', previousAriaLabel);
+        } else {
+            button.removeAttribute('aria-label');
+        }
     }
 }
 
@@ -500,6 +523,7 @@ function ensureStore(data) {
     store.folderOrder = Array.isArray(store.folderOrder) ? store.folderOrder : [];
     store.entryFolders = store.entryFolders && typeof store.entryFolders === 'object' ? store.entryFolders : {};
     store.entryOrder = store.entryOrder && typeof store.entryOrder === 'object' ? store.entryOrder : {};
+    store.entryTranslations = store.entryTranslations && typeof store.entryTranslations === 'object' ? store.entryTranslations : {};
     store.unfiledCollapsed = typeof store.unfiledCollapsed === 'boolean' ? store.unfiledCollapsed : false;
 
     const knownFolderIds = new Set(store.folders.map(folder => folder.id));
@@ -1465,16 +1489,102 @@ function appendKeywordsToEntry(entry, fieldName, keywords) {
     return addedCount;
 }
 
-function ensureContentTranslationTools(panel, contentBlock) {
-    if (!panel || !contentBlock || panel.querySelector(':scope > .wip-content-translation-actions')) return;
+function createEntryIconAction(iconClass, title, className, handler) {
+    const button = createElement('i', `fa-solid ${iconClass} right_menu_button interactable ${className}`);
+    button.title = title;
+    button.tabIndex = 0;
+    button.setAttribute('role', 'button');
+    button.setAttribute('aria-label', title);
+    bindButtonActivation(button, event => {
+        if (button.classList.contains('disabled')) {
+            event?.preventDefault?.();
+            event?.stopPropagation?.();
+            return;
+        }
+
+        handler(event);
+    });
+    return button;
+}
+
+function getStoredContentTranslation(uid, source) {
+    if (!currentData || !uid) return null;
+
+    const store = ensureStore(currentData);
+    const saved = store.entryTranslations?.[uid];
+    const targetLanguage = ensureSettings().targetLanguage || DEFAULT_SETTINGS.targetLanguage;
+    if (!saved || saved.source !== source || saved.targetLanguage !== targetLanguage || !saved.translation) {
+        return null;
+    }
+
+    return saved.translation;
+}
+
+function showContentTranslation(grid, resultPane, resultTextarea, translation) {
+    resultTextarea.value = translation;
+    resultPane.hidden = false;
+    grid.classList.add('wip-content-translation-active');
+}
+
+function hideContentTranslation(grid, resultPane, resultTextarea) {
+    resultTextarea.value = '';
+    resultPane.hidden = true;
+    grid.classList.remove('wip-content-translation-active');
+}
+
+function restoreContentTranslation(entry, grid, resultPane, resultTextarea, textarea) {
+    const uid = getEntryUid(entry);
+    const translation = getStoredContentTranslation(uid, textarea.value || '');
+    if (translation) {
+        showContentTranslation(grid, resultPane, resultTextarea, translation);
+    } else {
+        hideContentTranslation(grid, resultPane, resultTextarea);
+    }
+}
+
+async function saveContentTranslation(entry, source, translation) {
+    if (!currentData || !isCurrentBookSelected()) return;
+
+    const uid = getEntryUid(entry);
+    if (!uid) return;
+
+    const store = ensureStore(currentData);
+    store.entryTranslations[uid] = {
+        source,
+        translation,
+        targetLanguage: ensureSettings().targetLanguage || DEFAULT_SETTINGS.targetLanguage,
+        updatedAt: Date.now(),
+    };
+
+    await saveCurrentData();
+}
+
+function ensureContentTranslationTools(entry, panel, contentBlock) {
+    if (!entry || !panel || !contentBlock || contentBlock.closest('.wip-content-translation-grid')) return;
 
     const textarea = contentBlock.querySelector('textarea[name="content"]');
     if (!textarea) return;
 
-    const actions = createElement('div', 'wip-content-translation-actions');
-    const translateButton = createElement('button', 'menu_button wip-translate-content-button', '번역');
-    translateButton.type = 'button';
-    actions.append(translateButton);
+    const expandButton = contentBlock.querySelector('.editor_maximize');
+    const translateButton = createEntryIconAction('fa-language', '본문 번역', 'wip-content-translate-button', event => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        runButtonTask(translateButton, '번역 중...', async () => {
+            const text = textarea.value || '';
+            if (!text.trim()) {
+                notify('warning', '본문이 비어 있습니다.');
+                return;
+            }
+
+            const translated = await translateText(text);
+            showContentTranslation(grid, resultPane, resultTextarea, translated);
+            await saveContentTranslation(entry, text, translated);
+        });
+    });
+
+    if (expandButton) {
+        expandButton.insertAdjacentElement('afterend', translateButton);
+    }
 
     const grid = createElement('div', 'wip-content-translation-grid');
     const originalPane = createElement('div', 'wip-content-translation-pane wip-content-original-pane');
@@ -1489,23 +1599,14 @@ function ensureContentTranslationTools(panel, contentBlock) {
     contentBlock.replaceWith(grid);
     originalPane.append(contentBlock);
     grid.append(originalPane, resultPane);
-    panel.insertBefore(actions, grid);
 
-    translateButton.addEventListener('click', event => {
-        event.preventDefault();
-        event.stopPropagation();
-        runButtonTask(translateButton, '번역 중...', async () => {
-            const text = textarea.value || '';
-            if (!text.trim()) {
-                notify('warning', '본문이 비어 있습니다.');
-                return;
-            }
+    if (!expandButton) {
+        panel.insertBefore(translateButton, grid);
+    }
 
-            const translated = await translateText(text);
-            resultTextarea.value = translated;
-            resultPane.hidden = false;
-            grid.classList.add('wip-content-translation-active');
-        });
+    restoreContentTranslation(entry, grid, resultPane, resultTextarea, textarea);
+    textarea.addEventListener('input', () => {
+        restoreContentTranslation(entry, grid, resultPane, resultTextarea, textarea);
     });
 }
 
@@ -1513,16 +1614,9 @@ function ensureKeywordTranslationTools(entry, panel, keywordsBlock) {
     if (!entry || !panel || !keywordsBlock || panel.querySelector(':scope > .wip-keyword-tools')) return;
 
     const tools = createElement('div', 'wip-keyword-tools');
-    const translateButton = createElement('button', 'menu_button wip-keyword-tool-button', '키워드 번역');
-    const recommendButton = createElement('button', 'menu_button wip-keyword-tool-button', 'AI 키워드 추천');
-    translateButton.type = 'button';
-    recommendButton.type = 'button';
-    tools.append(translateButton, recommendButton);
-    keywordsBlock.insertAdjacentElement('afterend', tools);
-
-    translateButton.addEventListener('click', event => {
-        event.preventDefault();
-        event.stopPropagation();
+    const translateButton = createEntryIconAction('fa-language', '키워드 번역', 'wip-keyword-translate-button', event => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
         runButtonTask(translateButton, '번역 중...', async () => {
             const primary = getKeywordValues(entry, 'key');
             const secondary = getKeywordValues(entry, 'keysecondary');
@@ -1537,10 +1631,9 @@ function ensureKeywordTranslationTools(entry, panel, keywordsBlock) {
                 : '추가할 번역 키워드가 없습니다.');
         });
     });
-
-    recommendButton.addEventListener('click', event => {
-        event.preventDefault();
-        event.stopPropagation();
+    const recommendButton = createEntryIconAction('fa-wand-magic-sparkles', 'AI 키워드 추천', 'wip-keyword-recommend-button', event => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
         runButtonTask(recommendButton, '추천 중...', async () => {
             const recommendations = await recommendKeywords(entry);
             const addedPrimary = appendKeywordsToEntry(entry, 'key', recommendations.primary);
@@ -1552,6 +1645,8 @@ function ensureKeywordTranslationTools(entry, panel, keywordsBlock) {
                 : '추가할 추천 키워드가 없습니다.');
         });
     });
+    tools.append(translateButton, recommendButton);
+    keywordsBlock.insertAdjacentElement('beforebegin', tools);
 }
 
 function getEntryPanel(edit, tabId) {
@@ -1566,7 +1661,7 @@ function ensureEntryEnhancements(entry, edit) {
     const keywordsBlock = activationPanel?.querySelector('[name="keywordsAndLogicBlock"]')
         || edit?.querySelector('[name="keywordsAndLogicBlock"]');
 
-    ensureContentTranslationTools(contentPanel, contentBlock);
+    ensureContentTranslationTools(entry, contentPanel, contentBlock);
     ensureKeywordTranslationTools(entry, activationPanel, keywordsBlock);
 }
 
@@ -1783,7 +1878,7 @@ function arrangeEntryTabContent(entry, edit, panels) {
     const additionalMatchingSources = edit.querySelector(':scope > .inline-drawer');
 
     appendNodeIfPresent(panels.content, contentBlock);
-    ensureContentTranslationTools(panels.content, contentBlock);
+    ensureContentTranslationTools(entry, panels.content, contentBlock);
     appendNodeIfPresent(panels.content, commentContainer);
 
     appendNodeIfPresent(panels.activation, getEntryHeaderControls(entry));
