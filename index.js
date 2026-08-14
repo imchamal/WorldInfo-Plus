@@ -936,7 +936,7 @@ function restoreEntryInsertionControls(entry) {
 
 function updateEntryDepthControlVisibility(entry) {
     const depthField = entry.querySelector('[name="depth"]');
-    const depthControl = depthField?.closest('.world_entry_form_control, .flex4, .flex2, label.checkbox, label.checkbox_label');
+    const depthControl = depthField?.closest('.wi-enter-footer-text, .world_entry_form_control, .flex4, .flex2, label.checkbox, label.checkbox_label');
     if (!depthControl || !depthField) return;
 
     const isUnavailable = depthField.disabled
