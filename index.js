@@ -298,7 +298,7 @@ function positionEntryMoveMenu(button, menu, container) {
 function showCreateFolderDialog(defaultName, unfiledEntries) {
     return new Promise(resolve => {
         const overlay = createElement('div', 'wip-dialog-overlay');
-        const dialog = createElement('div', 'wip-dialog');
+        const dialog = createElement('div', 'wip-dialog wip-create-dialog');
         dialog.setAttribute('role', 'dialog');
         dialog.setAttribute('aria-modal', 'true');
 

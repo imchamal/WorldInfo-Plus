@@ -204,6 +204,13 @@
     font-weight: 700;
 }
 
+.wip-create-dialog {
+    width: min(420px, calc(100vw - 32px));
+    max-height: min(460px, calc(100dvh - 32px));
+    gap: 8px;
+    padding: 10px;
+}
+
 .wip-manage-dialog {
     width: min(440px, calc(100% - 24px));
     max-height: min(520px, calc(100% - 24px));
@@ -271,6 +278,11 @@
     padding: 6px;
     border: 1px solid var(--SmartThemeBorderColor);
     border-radius: 8px;
+}
+
+.wip-create-dialog .wip-dialog-entry-list {
+    min-height: 80px;
+    max-height: 180px;
 }
 
 .wip-dialog-entry {
