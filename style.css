@@ -417,12 +417,12 @@
 
 .wip-entry-tabpanel > .WIEnteryHeaderControls > * {
     max-width: none;
-    min-width: 0;
+    min-width: min(120px, 100%);
     flex: 1 1 0;
 }
 
 .wip-entry-tabpanel > .WIEnteryHeaderControls > .wi-enter-footer-text:has([name="position"]) {
-    flex-grow: 2;
+    flex-grow: 1.25;
 }
 
 .wip-entry-tabpanel > .WIEnteryHeaderControls .text_pole,
@@ -431,9 +431,14 @@
     box-sizing: border-box;
 }
 
-.wip-entry-tabpanel > .WIEnteryHeaderControls .wip-entry-depth-hidden,
-.wip-entry-tabpanel > .WIEnteryHeaderControls .wi-enter-footer-text:has(input[name="depth"][style*="visibility: hidden"]) {
-    display: none !important;
+.wip-entry-tabpanel > .WIEnteryHeaderControls input[name="depth"][style*="visibility: hidden"] {
+    visibility: visible !important;
+    border-color: var(--SmartThemeBorderColor);
+    background: var(--black30a);
+    color: var(--SmartThemeBodyColor);
+    opacity: 0.55;
+    pointer-events: none;
+    cursor: not-allowed;
 }
 
 .wip-entry-tabpanel [name="contentAndCharFilterBlock"],
