@@ -408,21 +408,34 @@
 }
 
 .wip-entry-tabpanel > .WIEnteryHeaderControls {
-    display: flex !important;
+    display: grid !important;
     width: 100%;
-    flex-wrap: nowrap !important;
+    grid-template-columns: minmax(0, 1fr) minmax(84px, 0.45fr) minmax(84px, 0.45fr) minmax(96px, 0.55fr);
     gap: 8px;
     align-items: end;
 }
 
 .wip-entry-tabpanel > .WIEnteryHeaderControls > * {
     max-width: none;
-    min-width: min(120px, 100%);
-    flex: 1 1 0;
+    min-width: 0;
+    color: var(--SmartThemeBodyColor);
+    text-align: center;
 }
 
-.wip-entry-tabpanel > .WIEnteryHeaderControls > .wi-enter-footer-text:has([name="position"]) {
-    flex-grow: 1.25;
+.wip-entry-tabpanel > .WIEnteryHeaderControls .wi-enter-footer-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.2;
+}
+
+.wip-entry-tabpanel > .WIEnteryHeaderControls label,
+.wip-entry-tabpanel > .WIEnteryHeaderControls .wi-enter-footer-text > span:first-child {
+    min-height: 1.2em;
+    color: var(--SmartThemeBodyColor);
+    text-align: center;
+    font-size: 0.95em;
+    opacity: 0.78;
 }
 
 .wip-entry-tabpanel > .WIEnteryHeaderControls .text_pole,
