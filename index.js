@@ -562,25 +562,7 @@ function enableSorting() {
 
     const folderList = jQuery(entriesList);
     if (folderList.sortable('instance')) folderList.sortable('destroy');
-    folderList.sortable({
-        handle: '.wip-folder-handle',
-        items: '> .wip-folder-card:not([data-folder-id="__unfiled"])',
-        cancel: '.wip-entry-list, .world_entry, input, textarea, select, button, .menu_button',
-        helper: (_, item) => {
-            const helper = item.clone();
-            helper.find('.wip-entry-list').remove();
-            helper.addClass('wip-folder-sort-helper');
-            helper.width(item.outerWidth());
-            return helper;
-        },
-        placeholder: 'wip-folder-placeholder',
-        forcePlaceholderSize: true,
-        stop: async () => {
-            syncFromDom();
-            await saveCurrentData();
-            renderData();
-        },
-    });
+    enableFolderDragging(entriesList);
 
     for (const list of entriesList.querySelectorAll('.wip-entry-list')) {
         const sortableList = jQuery(list);
@@ -637,6 +619,63 @@ function enableSorting() {
                     renderData();
                 }, 0);
             },
+        });
+    }
+}
+
+function enableFolderDragging(entriesList) {
+    const folderCards = Array.from(entriesList.querySelectorAll(':scope > .wip-folder-card:not([data-folder-id="__unfiled"])'));
+
+    for (const card of folderCards) {
+        const handle = card.querySelector(':scope > .wip-folder-header > .wip-folder-handle');
+        if (!handle) continue;
+
+        handle.draggable = true;
+        handle.addEventListener('dragstart', event => {
+            event.stopPropagation();
+            card.classList.add('wip-folder-dragging');
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', card.dataset.folderId || '');
+        });
+
+        handle.addEventListener('dragend', async event => {
+            event.stopPropagation();
+            entriesList.querySelectorAll('.wip-folder-dragging, .wip-folder-drag-over').forEach(element => {
+                element.classList.remove('wip-folder-dragging', 'wip-folder-drag-over');
+            });
+
+            syncFromDom();
+            await saveCurrentData();
+            renderData();
+        });
+
+        card.addEventListener('dragover', event => {
+            const draggedCard = entriesList.querySelector(':scope > .wip-folder-card.wip-folder-dragging');
+            if (!draggedCard || draggedCard === card) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            const rect = card.getBoundingClientRect();
+            const insertAfter = event.clientY > rect.top + rect.height / 2;
+            card.classList.add('wip-folder-drag-over');
+
+            if (insertAfter) {
+                card.insertAdjacentElement('afterend', draggedCard);
+            } else {
+                card.insertAdjacentElement('beforebegin', draggedCard);
+            }
+        });
+
+        card.addEventListener('dragleave', event => {
+            if (card.contains(event.relatedTarget)) return;
+            card.classList.remove('wip-folder-drag-over');
+        });
+
+        card.addEventListener('drop', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            card.classList.remove('wip-folder-drag-over');
         });
     }
 }
