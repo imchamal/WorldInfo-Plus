@@ -106,6 +106,61 @@
     opacity: 0.92;
 }
 
+.wip-entry-move-folder {
+    flex: 0 0 auto;
+}
+
+.wip-entry-move-menu {
+    position: fixed;
+    z-index: 50001;
+    display: flex;
+    min-width: 180px;
+    max-width: min(260px, calc(100vw - 24px));
+    max-height: min(320px, calc(100dvh - 24px));
+    flex-direction: column;
+    gap: 2px;
+    overflow: auto;
+    padding: 6px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    background: var(--SmartThemeBlurTintColor);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.wip-entry-move-option {
+    display: flex;
+    width: 100%;
+    min-height: 30px;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--SmartThemeBodyColor);
+    cursor: pointer;
+    text-align: left;
+}
+
+.wip-entry-move-option:hover:not(:disabled) {
+    background: var(--black30a);
+}
+
+.wip-entry-move-option:disabled {
+    cursor: default;
+    opacity: 0.7;
+}
+
+.wip-entry-move-check {
+    width: 16px;
+    text-align: center;
+}
+
+.wip-entry-move-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .wip-empty {
     padding: 10px;
     opacity: 0.75;

@@ -12,6 +12,7 @@ let isOrganizing = false;
 let organizeTimer = null;
 let loadTimer = null;
 let entriesObserver = null;
+let entryMoveMenu = null;
 
 function createElement(tag, className = '', text = '') {
     const element = document.createElement(tag);
@@ -188,6 +189,18 @@ function getUnfiledEntries(data, store) {
 function closeDialog(dialog, result) {
     dialog.remove();
     return result;
+}
+
+function closeEntryMoveMenu() {
+    entryMoveMenu?.remove();
+    entryMoveMenu = null;
+    document.removeEventListener('pointerdown', handleEntryMoveMenuOutsideClick);
+}
+
+function handleEntryMoveMenuOutsideClick(event) {
+    if (entryMoveMenu?.contains(event.target)) return;
+    if (event.target?.closest?.('.wip-entry-move-folder')) return;
+    closeEntryMoveMenu();
 }
 
 function showCreateFolderDialog(defaultName, unfiledEntries) {
@@ -388,6 +401,80 @@ function getEntryUid(element) {
     return String(element.dataset.uid || element.getAttribute('uid') || '');
 }
 
+async function moveEntryToFolder(uid, targetFolderId) {
+    if (!isCurrentBookSelected()) {
+        scheduleLoadSelectedBook();
+        return;
+    }
+
+    syncFromDom();
+
+    const store = ensureStore(currentData);
+    const normalizedUid = String(uid);
+
+    for (const folderId of Object.keys(store.entryOrder)) {
+        store.entryOrder[folderId] = store.entryOrder[folderId].filter(entryUid => String(entryUid) !== normalizedUid);
+    }
+
+    if (targetFolderId === UNFILED_ID) {
+        delete store.entryFolders[normalizedUid];
+        store.entryOrder[UNFILED_ID].push(normalizedUid);
+    } else {
+        store.entryFolders[normalizedUid] = targetFolderId;
+        store.entryOrder[targetFolderId] = Array.isArray(store.entryOrder[targetFolderId]) ? store.entryOrder[targetFolderId] : [];
+        store.entryOrder[targetFolderId].push(normalizedUid);
+    }
+
+    renderData();
+    await saveCurrentData();
+}
+
+function showEntryMoveMenu(button, uid) {
+    closeEntryMoveMenu();
+
+    if (!currentData) return;
+
+    const store = ensureStore(currentData);
+    const currentFolderId = store.entryFolders[String(uid)] || UNFILED_ID;
+    const menu = createElement('div', 'wip-entry-move-menu');
+
+    const addOption = (folderId, label) => {
+        const option = createElement('button', 'wip-entry-move-option');
+        option.type = 'button';
+        option.dataset.folderId = folderId;
+
+        const check = createElement('span', 'fa-solid fa-check wip-entry-move-check');
+        const isCurrentFolder = folderId === currentFolderId;
+        check.hidden = !isCurrentFolder;
+        option.disabled = isCurrentFolder;
+
+        const text = createElement('span', 'wip-entry-move-label', label);
+        option.append(check, text);
+        option.addEventListener('click', async event => {
+            event.preventDefault();
+            event.stopPropagation();
+            closeEntryMoveMenu();
+            await moveEntryToFolder(uid, folderId);
+        });
+
+        menu.append(option);
+    };
+
+    addOption(UNFILED_ID, 'Unfiled');
+
+    for (const folder of getOrderedFolders(store)) {
+        addOption(folder.id, folder.name);
+    }
+
+    const rect = button.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 240))}px`;
+    menu.style.top = `${Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 120))}px`;
+
+    entryMoveMenu = menu;
+    (document.querySelector('#WorldInfo') || document.body).append(menu);
+    setTimeout(() => document.addEventListener('pointerdown', handleEntryMoveMenuOutsideClick), 0);
+}
+
 function ensureEntryFolderHandle(entry) {
     let handle = entry.querySelector(':scope .wip-entry-handle');
     if (handle) return;
@@ -403,6 +490,34 @@ function ensureEntryFolderHandle(entry) {
 
     const header = entry.querySelector('.inline-drawer-header') || entry.querySelector('.world_entry_form') || entry;
     header.prepend(handle);
+}
+
+function ensureEntryMoveButton(entry) {
+    if (entry.querySelector(':scope .wip-entry-move-folder')) return;
+
+    const uid = getEntryUid(entry);
+    if (!uid) return;
+
+    const button = createElement('i', 'menu_button fa-solid fa-folder-open wip-entry-move-folder');
+    button.title = '폴더로 이동';
+    button.tabIndex = 0;
+    button.setAttribute('role', 'button');
+    bindButtonActivation(button, event => {
+        event?.stopPropagation?.();
+        showEntryMoveMenu(button, uid);
+    });
+
+    const existingMoveButton = entry.querySelector(':scope .move_entry_button');
+    const duplicateButton = entry.querySelector(':scope .duplicate_entry_button');
+    const header = entry.querySelector(':scope .inline-drawer-header') || entry;
+
+    if (existingMoveButton) {
+        existingMoveButton.insertAdjacentElement('afterend', button);
+    } else if (duplicateButton) {
+        duplicateButton.insertAdjacentElement('beforebegin', button);
+    } else {
+        header.append(button);
+    }
 }
 
 function collectRenderedEntries(entriesList) {
@@ -509,6 +624,7 @@ function renderFolder(folder, entries, isUnfiled = false) {
 
     for (const entry of entries) {
         ensureEntryFolderHandle(entry);
+        ensureEntryMoveButton(entry);
         entryList.append(entry);
     }
 
@@ -657,6 +773,7 @@ function scheduleRenderData(delay = 80) {
 function renderData() {
     const entriesList = getEntriesList();
     if (isOrganizing) return;
+    closeEntryMoveMenu();
 
     if (!currentData || !entriesList) {
         renderEmpty('No lorebook loaded.');
