@@ -416,7 +416,7 @@
 }
 
 .wip-entry-insertion-grid {
-    grid-template-columns: minmax(220px, 2fr) repeat(auto-fit, minmax(110px, 1fr));
+    grid-template-columns: minmax(0, 1fr) minmax(64px, 90px) minmax(64px, 90px) minmax(78px, 110px);
 }
 
 .wip-entry-matching-grid {

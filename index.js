@@ -9,6 +9,7 @@ const ENTRY_TABS = [
     { id: 'filters', label: '필터' },
     { id: 'advanced', label: '고급' },
 ];
+const ENTRY_INSERTION_FIELDS = ['position', 'depth', 'order', 'probability'];
 
 let root;
 let currentBookName = '';
@@ -937,6 +938,47 @@ function appendGroupIfNotEmpty(target, group) {
     target.append(group);
 }
 
+function getEntryHeaderControls(entry) {
+    return entry.querySelector(':scope .world_entry_form > .inline-drawer > .inline-drawer-header .WIEnteryHeaderControls')
+        || entry.querySelector(':scope .WIEnteryHeaderControls');
+}
+
+function getControlForField(rootElement, fieldName) {
+    const field = rootElement?.querySelector(`[name="${fieldName}"]`);
+    return field?.closest('.world_entry_form_control, .flex4, .flex2, label.checkbox, label.checkbox_label') || null;
+}
+
+function restoreEntryInsertionControls(entry) {
+    const headerControls = getEntryHeaderControls(entry);
+    if (!headerControls) return;
+
+    for (const fieldName of ENTRY_INSERTION_FIELDS) {
+        const control = getControlForField(entry, fieldName);
+        if (!control || headerControls.contains(control)) continue;
+        headerControls.append(control);
+    }
+}
+
+function getEntryInsertionGroup(edit) {
+    return edit?.querySelector(':scope > .wip-entry-tabs .wip-entry-insertion-grid') || null;
+}
+
+function moveEntryInsertionControlsToTab(entry, edit) {
+    const activationPanel = edit?.querySelector(':scope > .wip-entry-tabs .wip-entry-tabpanel[data-tab-id="activation"]');
+    if (!activationPanel) return;
+
+    let insertionGroup = getEntryInsertionGroup(edit);
+    if (!insertionGroup) {
+        insertionGroup = createElement('div', 'wip-entry-field-grid wip-entry-insertion-grid');
+        activationPanel.prepend(insertionGroup);
+    }
+
+    appendControlGroup(insertionGroup, entry, ENTRY_INSERTION_FIELDS);
+    if (!insertionGroup.childElementCount) {
+        insertionGroup.remove();
+    }
+}
+
 function getFieldWideRow(rootElement, fieldName) {
     const field = rootElement?.querySelector(`[name="${fieldName}"]`);
     return field?.closest('.flex-container.wide100p.flexGap10') || null;
@@ -1061,7 +1103,7 @@ function arrangeEntryTabContent(entry, edit, panels) {
     appendNodeIfPresent(panels.content, contentBlock);
     appendNodeIfPresent(panels.content, commentContainer);
 
-    appendControlGroup(insertionGroup, entry, ['position', 'depth', 'order', 'probability']);
+    appendControlGroup(insertionGroup, entry, ENTRY_INSERTION_FIELDS);
     appendGroupIfNotEmpty(panels.activation, insertionGroup);
     appendNodeIfPresent(panels.activation, keywordsBlock);
     appendControlGroup(matchingGroup, edit, ['outletName', 'scanDepth', 'caseSensitive', 'matchWholeWords']);
@@ -1083,12 +1125,14 @@ function ensureEntryTabs(entry) {
     if (!edit) return false;
 
     if (edit.dataset.wipTabs === 'true') {
+        moveEntryInsertionControlsToTab(entry, edit);
         return true;
     }
 
     const panels = createEntryTabLayout(entry, edit);
     arrangeEntryTabContent(entry, edit, panels);
     edit.dataset.wipTabs = 'true';
+    moveEntryInsertionControlsToTab(entry, edit);
     setEntryActiveTab(edit, 'content');
     return true;
 }
@@ -1109,6 +1153,9 @@ function bindEntryTabOpenHandler(entry) {
     if (!toggle) return;
 
     entryTabOpenHandlers.add(entry);
+    toggle.addEventListener('click', () => {
+        restoreEntryInsertionControls(entry);
+    }, { capture: true });
     toggle.addEventListener('click', () => {
         scheduleEnsureEntryTabs(entry);
         setTimeout(() => {
