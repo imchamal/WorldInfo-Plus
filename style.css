@@ -110,6 +110,10 @@
     flex: 0 0 auto;
 }
 
+.world_entry_form > .inline-drawer > .inline-drawer-header .WIEnteryHeaderControls {
+    display: none;
+}
+
 .wip-entry-menu-anchor {
     position: relative;
 }
@@ -440,9 +444,19 @@
 }
 
 .wip-entry-tabpanel [name="contentAndCharFilterBlock"],
-.wip-entry-tabpanel .world_entry_form_control,
+.wip-entry-tabpanel [name="contentAndCharFilterBlock"] > .world_entry_form_control,
+.wip-entry-field-grid > .world_entry_form_control,
 .wip-entry-tabpanel > .inline-drawer {
     width: 100%;
+}
+
+.wip-entry-tabpanel [name="keywordsAndLogicBlock"] > .world_entry_form_control {
+    min-width: min(180px, 100%);
+}
+
+.wip-entry-tabpanel [name="keywordsAndLogicBlock"] > .keyprimary,
+.wip-entry-tabpanel [name="keywordsAndLogicBlock"] > .keysecondary {
+    min-width: min(280px, 100%);
 }
 
 .wip-entry-tabpanel textarea[name="content"] {
@@ -457,4 +471,10 @@
 
 .WIEnteryHeaderControls:empty {
     display: none;
+}
+
+@media (min-width: 900px) {
+    .wip-entry-tabpanel [name="keywordsAndLogicBlock"] {
+        flex-wrap: nowrap;
+    }
 }

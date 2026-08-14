@@ -1061,9 +1061,9 @@ function arrangeEntryTabContent(entry, edit, panels) {
     appendNodeIfPresent(panels.content, contentBlock);
     appendNodeIfPresent(panels.content, commentContainer);
 
-    appendNodeIfPresent(panels.activation, keywordsBlock);
     appendControlGroup(insertionGroup, entry, ['position', 'depth', 'order', 'probability']);
     appendGroupIfNotEmpty(panels.activation, insertionGroup);
+    appendNodeIfPresent(panels.activation, keywordsBlock);
     appendControlGroup(matchingGroup, edit, ['outletName', 'scanDepth', 'caseSensitive', 'matchWholeWords']);
     appendGroupIfNotEmpty(panels.activation, matchingGroup);
     appendNodeIfPresent(panels.activation, bottomControls);
