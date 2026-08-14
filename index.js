@@ -94,6 +94,8 @@ async function saveCurrentData() {
 }
 
 async function loadSelectedBook() {
+    installNativeToolbarButton();
+
     const requestedBookName = getSelectedBookName();
 
     if (!requestedBookName) {
@@ -147,39 +149,68 @@ function renderEmpty(message) {
     entriesList?.querySelectorAll(':scope > .wip-folder-card').forEach(element => element.remove());
 }
 
+async function createFolder() {
+    if (!await ensureCurrentDataLoaded()) {
+        setStatus('Select a lorebook first.');
+        return;
+    }
+
+    const store = ensureStore(currentData);
+    const name = prompt('Folder name', `Folder ${store.folders.length + 1}`);
+    if (!name) return;
+
+    const id = `folder_${Date.now().toString(36)}`;
+    store.folders.push({ id, name: name.trim(), collapsed: false, order: store.folderOrder.length });
+    store.folderOrder.push(id);
+    store.entryOrder[id] = [];
+
+    renderData();
+    await saveCurrentData();
+}
+
+function bindButtonActivation(button, handler) {
+    button.addEventListener('click', handler);
+    button.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        button.click();
+    });
+}
+
+function createIconButton(id, iconClass, title, handler) {
+    const button = createElement('div', `menu_button fa-solid ${iconClass} interactable wip-icon-button`);
+    button.id = id;
+    button.title = title;
+    button.tabIndex = 0;
+    button.setAttribute('role', 'button');
+    bindButtonActivation(button, handler);
+    return button;
+}
+
 function renderToolbar() {
     const toolbar = createElement('div', 'wip-toolbar');
-
-    const title = createElement('div', 'wip-title', 'WorldInfo Plus');
     const status = createElement('div', 'wip-status', 'Idle');
-
-    const newFolderButton = createElement('button', 'menu_button wip-button', 'New Folder');
-    newFolderButton.type = 'button';
-    newFolderButton.addEventListener('click', async () => {
-        if (!await ensureCurrentDataLoaded()) {
-            setStatus('Select a lorebook first.');
-            return;
-        }
-
-        const store = ensureStore(currentData);
-        const name = prompt('Folder name', `Folder ${store.folders.length + 1}`);
-        if (!name) return;
-
-        const id = `folder_${Date.now().toString(36)}`;
-        store.folders.push({ id, name: name.trim(), collapsed: false, order: store.folderOrder.length });
-        store.folderOrder.push(id);
-        store.entryOrder[id] = [];
-
-        renderData();
-        await saveCurrentData();
-    });
-
-    const refreshButton = createElement('button', 'menu_button wip-button', 'Refresh');
-    refreshButton.type = 'button';
-    refreshButton.addEventListener('click', loadSelectedBook);
-
-    toolbar.append(title, status, newFolderButton, refreshButton);
+    toolbar.append(status);
     return toolbar;
+}
+
+function installNativeToolbarButton() {
+    if (document.querySelector('#worldinfo_plus_new_folder')) return;
+
+    const newEntryButton = document.querySelector('#world_popup_new');
+    if (!newEntryButton) {
+        setTimeout(installNativeToolbarButton, 500);
+        return;
+    }
+
+    const newFolderButton = createIconButton(
+        'worldinfo_plus_new_folder',
+        'fa-folder-plus',
+        '새 폴더',
+        createFolder,
+    );
+
+    newEntryButton.insertAdjacentElement('afterend', newFolderButton);
 }
 
 function getEntryUid(element) {
@@ -232,13 +263,19 @@ function renderFolder(folder, entries, isUnfiled = false) {
     const handle = createElement('span', 'drag-handle wip-folder-handle');
     handle.innerHTML = '&#9776;';
 
-    const toggle = createElement('button', 'wip-folder-toggle', folder.collapsed ? '>' : 'v');
-    toggle.type = 'button';
-    toggle.addEventListener('click', async () => {
-        folder.collapsed = !folder.collapsed;
-        renderData();
-        await saveCurrentData();
-    });
+    const toggle = createIconButton(
+        '',
+        folder.collapsed ? 'fa-circle-chevron-down' : 'fa-circle-chevron-up',
+        folder.collapsed ? '폴더 펼치기' : '폴더 접기',
+        async () => {
+            folder.collapsed = !folder.collapsed;
+            renderData();
+            await saveCurrentData();
+        },
+    );
+    toggle.removeAttribute('id');
+    toggle.classList.add('wip-folder-toggle');
+    toggle.classList.remove('menu_button');
 
     const name = createElement('button', 'wip-folder-name', folder.name);
     name.type = 'button';
@@ -249,34 +286,42 @@ function renderFolder(folder, entries, isUnfiled = false) {
     header.append(handle, toggle, name, count);
 
     if (!isUnfiled) {
-        const renameButton = createElement('button', 'menu_button wip-icon-button', 'Rename');
-        renameButton.type = 'button';
-        renameButton.addEventListener('click', async () => {
-            const nextName = prompt('Folder name', folder.name);
-            if (!nextName) return;
-            folder.name = nextName.trim();
-            renderData();
-            await saveCurrentData();
-        });
+        const renameButton = createIconButton(
+            '',
+            'fa-pencil',
+            '폴더 이름 변경',
+            async () => {
+                const nextName = prompt('Folder name', folder.name);
+                if (!nextName) return;
+                folder.name = nextName.trim();
+                renderData();
+                await saveCurrentData();
+            },
+        );
+        renameButton.removeAttribute('id');
 
-        const deleteButton = createElement('button', 'menu_button wip-icon-button', 'Delete');
-        deleteButton.type = 'button';
-        deleteButton.addEventListener('click', async () => {
-            if (!confirm(`Delete folder "${folder.name}"? Entries will move to Unfiled.`)) return;
+        const deleteButton = createIconButton(
+            '',
+            'fa-trash-can',
+            '폴더 삭제',
+            async () => {
+                if (!confirm(`Delete folder "${folder.name}"? Entries will move to Unfiled.`)) return;
 
-            store.folders = store.folders.filter(item => item.id !== folder.id);
-            store.folderOrder = store.folderOrder.filter(id => id !== folder.id);
-            delete store.entryOrder[folder.id];
+                store.folders = store.folders.filter(item => item.id !== folder.id);
+                store.folderOrder = store.folderOrder.filter(id => id !== folder.id);
+                delete store.entryOrder[folder.id];
 
-            for (const [uid, folderId] of Object.entries(store.entryFolders)) {
-                if (folderId === folder.id) {
-                    delete store.entryFolders[uid];
+                for (const [uid, folderId] of Object.entries(store.entryFolders)) {
+                    if (folderId === folder.id) {
+                        delete store.entryFolders[uid];
+                    }
                 }
-            }
 
-            renderData();
-            await saveCurrentData();
-        });
+                renderData();
+                await saveCurrentData();
+            },
+        );
+        deleteButton.removeAttribute('id');
 
         header.append(renameButton, deleteButton);
     }
@@ -469,6 +514,7 @@ function mount() {
 
     const editorSelect = document.querySelector('#world_editor_select');
     entriesList.insertAdjacentElement('beforebegin', root);
+    installNativeToolbarButton();
     observeEntriesList(entriesList);
     console.debug('[WorldInfo Plus] Mounted before #world_popup_entries_list');
 
