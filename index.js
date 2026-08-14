@@ -195,12 +195,35 @@ function closeEntryMoveMenu() {
     entryMoveMenu?.remove();
     entryMoveMenu = null;
     document.removeEventListener('pointerdown', handleEntryMoveMenuOutsideClick);
+    document.removeEventListener('scroll', closeEntryMoveMenu, true);
+    window.removeEventListener('resize', closeEntryMoveMenu);
 }
 
 function handleEntryMoveMenuOutsideClick(event) {
     if (entryMoveMenu?.contains(event.target)) return;
     if (event.target?.closest?.('.wip-entry-move-folder')) return;
     closeEntryMoveMenu();
+}
+
+function positionEntryMoveMenu(button, menu) {
+    const margin = 8;
+    const gap = 4;
+    const buttonRect = button.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+    const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
+    const maxLeft = viewportWidth - menuRect.width - margin;
+    const maxTop = viewportHeight - menuRect.height - margin;
+
+    let left = buttonRect.right - menuRect.width;
+    let top = buttonRect.bottom + gap;
+
+    if (top + menuRect.height > viewportHeight - margin) {
+        top = buttonRect.top - menuRect.height - gap;
+    }
+
+    menu.style.left = `${Math.max(margin, Math.min(left, maxLeft))}px`;
+    menu.style.top = `${Math.max(margin, Math.min(top, maxTop))}px`;
 }
 
 function showCreateFolderDialog(defaultName, unfiledEntries) {
@@ -445,7 +468,7 @@ function showEntryMoveMenu(button, uid) {
 
         const check = createElement('span', 'fa-solid fa-check wip-entry-move-check');
         const isCurrentFolder = folderId === currentFolderId;
-        check.hidden = !isCurrentFolder;
+        check.classList.toggle('wip-entry-move-check-active', isCurrentFolder);
         option.disabled = isCurrentFolder;
 
         const text = createElement('span', 'wip-entry-move-label', label);
@@ -466,13 +489,15 @@ function showEntryMoveMenu(button, uid) {
         addOption(folder.id, folder.name);
     }
 
-    const rect = button.getBoundingClientRect();
-    menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 240))}px`;
-    menu.style.top = `${Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - 120))}px`;
-
     entryMoveMenu = menu;
-    (document.querySelector('#WorldInfo') || document.body).append(menu);
-    setTimeout(() => document.addEventListener('pointerdown', handleEntryMoveMenuOutsideClick), 0);
+    document.body.append(menu);
+    positionEntryMoveMenu(button, menu);
+
+    setTimeout(() => {
+        document.addEventListener('pointerdown', handleEntryMoveMenuOutsideClick);
+        document.addEventListener('scroll', closeEntryMoveMenu, true);
+        window.addEventListener('resize', closeEntryMoveMenu);
+    }, 0);
 }
 
 function ensureEntryFolderHandle(entry) {

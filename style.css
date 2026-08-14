@@ -153,6 +153,11 @@
 .wip-entry-move-check {
     width: 16px;
     text-align: center;
+    visibility: hidden;
+}
+
+.wip-entry-move-check-active {
+    visibility: visible;
 }
 
 .wip-entry-move-label {
