@@ -205,7 +205,10 @@
 }
 
 .wip-manage-dialog {
-    width: min(720px, calc(100vw - 32px));
+    width: min(440px, calc(100% - 24px));
+    max-height: min(520px, calc(100% - 24px));
+    gap: 8px;
+    padding: 10px;
 }
 
 .wip-folder-input {
@@ -257,6 +260,7 @@
 .wip-dialog-entry-list {
     display: flex;
     min-height: 96px;
+    max-height: min(280px, 42dvh);
     flex-direction: column;
     gap: 6px;
     overflow: auto;
@@ -269,7 +273,7 @@
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    padding: 6px;
+    padding: 4px 6px;
     border-radius: 6px;
     cursor: pointer;
 }
