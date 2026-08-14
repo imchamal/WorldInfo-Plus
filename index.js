@@ -948,6 +948,17 @@ function getFieldWideRow(rootElement, fieldName) {
     return field?.closest('.flex-container.wide100p.flexGap10') || null;
 }
 
+function getFieldContainer(rootElement, fieldName) {
+    const field = rootElement?.querySelector(`[name="${fieldName}"]`);
+    return field?.closest('.world_entry_form_control, .flex4, .flex2, .flex1') || null;
+}
+
+function removeIfEmpty(element) {
+    if (element && element.children.length === 0) {
+        element.remove();
+    }
+}
+
 function getRecursionOptions(contentBlock) {
     const recursionField = contentBlock?.querySelector('[name="excludeRecursion"]');
     const column = recursionField?.closest('.flex-container.flexFlowColumn');
@@ -959,6 +970,63 @@ function getRecursionOptions(contentBlock) {
 
     group.classList.add('wip-entry-recursion-options');
     return group;
+}
+
+function markEntryFilterLayout(filtersRow) {
+    if (!filtersRow) return null;
+
+    const characterFilter = getFieldContainer(filtersRow, 'characterFilter');
+    const triggerFilter = getFieldContainer(filtersRow, 'triggers');
+    const characterHeader = characterFilter?.querySelector(':scope > .flex-container.justifySpaceBetween');
+    const triggerHeader = triggerFilter?.querySelector(':scope > .flex-container.justifySpaceBetween');
+    const characterExclusion = characterHeader?.querySelector('[name="character_exclusion"]')?.closest('label');
+
+    filtersRow.classList.add('wip-entry-filter-grid');
+    characterFilter?.classList.add('wip-entry-filter-character');
+    triggerFilter?.classList.add('wip-entry-filter-trigger');
+    characterHeader?.classList.add('wip-entry-filter-character-header');
+    triggerHeader?.classList.add('wip-entry-filter-trigger-header');
+    characterHeader?.querySelector('small[for="characterFilter"]')?.classList.add('wip-entry-filter-character-label');
+    triggerHeader?.querySelector('small')?.classList.add('wip-entry-filter-trigger-label');
+    characterExclusion?.classList.add('wip-entry-filter-exclude');
+    triggerHeader?.querySelector('label[for="__invisible"]')?.classList.add('wip-entry-filter-trigger-spacer');
+    characterFilter?.querySelector(':scope > .range-block-range')?.classList.add('wip-entry-filter-character-input');
+    triggerFilter?.querySelector(':scope > .range-block-range')?.classList.add('wip-entry-filter-trigger-input');
+
+    return filtersRow;
+}
+
+function createEntryAdvancedRow(className, nodes) {
+    const row = createElement('div', `wip-entry-advanced-row ${className}`);
+
+    for (const node of nodes) {
+        appendNodeIfPresent(row, node);
+    }
+
+    return row.children.length > 0 ? row : null;
+}
+
+function getEntryAdvancedRows(edit, recursionOptions) {
+    const originalTimingRow = getFieldWideRow(edit, 'group');
+    const groupRow = createEntryAdvancedRow('wip-entry-advanced-group-row', [
+        getFieldContainer(edit, 'group'),
+        getFieldContainer(edit, 'groupWeight'),
+        getFieldContainer(edit, 'useGroupScoring'),
+        getFieldContainer(edit, 'automationId'),
+    ]);
+    const timingRow = createEntryAdvancedRow('wip-entry-advanced-timing-row', [
+        getFieldContainer(edit, 'sticky'),
+        getFieldContainer(edit, 'cooldown'),
+        getFieldContainer(edit, 'delay'),
+    ]);
+    const recursionRow = createEntryAdvancedRow('wip-entry-advanced-recursion-row', [
+        recursionOptions,
+        getFieldContainer(edit, 'delayUntilRecursionLevel'),
+    ]);
+
+    removeIfEmpty(originalTimingRow);
+
+    return { groupRow, timingRow, recursionRow };
 }
 
 function createEntryTabLayout(entry, edit) {
@@ -1057,8 +1125,8 @@ function arrangeEntryTabContent(entry, edit, panels) {
     const keywordsBlock = edit.querySelector('[name="keywordsAndLogicBlock"]');
     const perEntryOverridesBlock = edit.querySelector('[name="perEntryOverridesBlock"]');
     const bottomControls = edit.querySelector('[name="WIEntryBottomControls"]');
-    const groupRow = getFieldWideRow(edit, 'group');
-    const filtersRow = getFieldWideRow(edit, 'characterFilter');
+    const advancedRows = getEntryAdvancedRows(edit, recursionOptions);
+    const filtersRow = markEntryFilterLayout(getFieldWideRow(edit, 'characterFilter'));
     const additionalMatchingSources = edit.querySelector(':scope > .inline-drawer');
 
     appendNodeIfPresent(panels.content, contentBlock);
@@ -1072,8 +1140,9 @@ function arrangeEntryTabContent(entry, edit, panels) {
     appendNodeIfPresent(panels.filters, filtersRow);
     appendNodeIfPresent(panels.filters, additionalMatchingSources);
 
-    appendNodeIfPresent(panels.advanced, groupRow);
-    appendNodeIfPresent(panels.advanced, recursionOptions);
+    appendNodeIfPresent(panels.advanced, advancedRows.groupRow);
+    appendNodeIfPresent(panels.advanced, advancedRows.timingRow);
+    appendNodeIfPresent(panels.advanced, advancedRows.recursionRow);
 }
 
 function ensureEntryTabs(entry) {

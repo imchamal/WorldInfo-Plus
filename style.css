@@ -407,6 +407,10 @@
     gap: 8px;
 }
 
+.wip-entry-tabpanel[data-tab-id="filters"] {
+    container-type: inline-size;
+}
+
 .wip-entry-tabpanel > .WIEnteryHeaderControls {
     display: grid !important;
     width: 100%;
@@ -476,6 +480,39 @@
     min-height: 240px;
 }
 
+.wip-entry-advanced-row {
+    display: grid !important;
+    width: 100%;
+    gap: 8px;
+    align-items: end;
+}
+
+.wip-entry-advanced-group-row {
+    grid-template-columns: minmax(0, 2fr) minmax(78px, 0.55fr) minmax(92px, 0.65fr) minmax(0, 1fr);
+}
+
+.wip-entry-advanced-timing-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.wip-entry-advanced-recursion-row {
+    grid-template-columns: minmax(0, 2fr) minmax(104px, 0.7fr);
+}
+
+.wip-entry-advanced-row > * {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+}
+
+.wip-entry-advanced-row .range-block-range,
+.wip-entry-advanced-row input.text_pole,
+.wip-entry-advanced-row select.text_pole,
+.wip-entry-advanced-row .select2-container {
+    width: 100% !important;
+    box-sizing: border-box;
+}
+
 .wip-entry-recursion-options {
     display: grid !important;
     width: 100%;
@@ -487,6 +524,59 @@
 .wip-entry-recursion-options > * {
     width: 100%;
     min-width: 0;
+}
+
+@container (max-width: 640px) {
+    .wip-entry-filter-grid {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas:
+            "character-label trigger-label"
+            "exclude trigger-input"
+            "character-input empty";
+        gap: 6px 10px;
+        align-items: end;
+    }
+
+    .wip-entry-filter-character,
+    .wip-entry-filter-trigger,
+    .wip-entry-filter-character-header,
+    .wip-entry-filter-trigger-header {
+        display: contents !important;
+    }
+
+    .wip-entry-filter-character-label {
+        grid-area: character-label;
+    }
+
+    .wip-entry-filter-trigger-label {
+        grid-area: trigger-label;
+    }
+
+    .wip-entry-filter-exclude {
+        grid-area: exclude;
+        justify-self: start;
+    }
+
+    .wip-entry-filter-trigger-spacer {
+        display: none !important;
+    }
+
+    .wip-entry-filter-character-input {
+        grid-area: character-input;
+    }
+
+    .wip-entry-filter-trigger-input {
+        grid-area: trigger-input;
+    }
+
+    .wip-entry-filter-character-input,
+    .wip-entry-filter-trigger-input,
+    .wip-entry-filter-character-input .select2-container,
+    .wip-entry-filter-trigger-input .select2-container {
+        width: 100% !important;
+        min-width: 0;
+    }
 }
 
 .WIEnteryHeaderControls:empty {
