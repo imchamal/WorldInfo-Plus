@@ -457,8 +457,10 @@
 }
 
 .wip-entry-tabpanel [name="keywordsAndLogicBlock"] > .world_entry_form_control:not(.keyprimary):not(.keysecondary) {
-    min-width: min(150px, 100%);
-    flex: 0 1 180px;
+    width: clamp(120px, 14%, 180px);
+    min-width: 120px;
+    max-width: 180px;
+    flex: 0 0 clamp(120px, 14%, 180px);
 }
 
 .wip-entry-tabpanel [name="keywordsAndLogicBlock"] .select2-container,
