@@ -32,12 +32,6 @@
     padding: 6px 8px;
 }
 
-.wip-folder-drop-hover {
-    background: var(--black30a);
-    outline: 1px dashed var(--SmartThemeBorderColor);
-    outline-offset: -3px;
-}
-
 .wip-folder-handle,
 .wip-entry-handle {
     width: 22px;

@@ -579,45 +579,10 @@ function enableSorting() {
             },
             placeholder: 'wip-entry-placeholder',
             forcePlaceholderSize: true,
-            stop: async (_, ui) => {
-                if (ui.item?.data('wipFolderDropPending')) return;
-
+            stop: async () => {
                 syncFromDom();
                 await saveCurrentData();
                 renderData();
-            },
-        });
-    }
-
-    if (!jQuery.fn.droppable) return;
-
-    for (const header of entriesList.querySelectorAll('.wip-folder-header')) {
-        const droppableHeader = jQuery(header);
-        if (droppableHeader.droppable('instance')) droppableHeader.droppable('destroy');
-
-        const targetFolder = header.closest('.wip-folder-card');
-        const targetList = targetFolder?.querySelector(':scope > .wip-entry-list');
-        if (!targetList?.hidden) continue;
-
-        droppableHeader.droppable({
-            accept: '.world_entry',
-            hoverClass: 'wip-folder-drop-hover',
-            tolerance: 'pointer',
-            drop: async (_, ui) => {
-                const draggedEntry = ui.draggable?.[0];
-
-                if (!draggedEntry?.classList.contains('world_entry') || targetList.contains(draggedEntry)) {
-                    return;
-                }
-
-                ui.draggable.data('wipFolderDropPending', true);
-                setTimeout(async () => {
-                    ui.draggable.removeData('wipFolderDropPending');
-                    targetList.append(draggedEntry);
-                    syncFromDom();
-                    await saveCurrentData();
-                    renderData();
-                }, 0);
             },
         });
     }
