@@ -425,10 +425,11 @@
 }
 
 .wip-keyword-tools {
-    display: flex;
-    width: 100%;
-    gap: 4px;
-    justify-content: flex-end;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 6px;
+    vertical-align: middle;
 }
 
 .wip-content-translate-button,
@@ -471,10 +472,6 @@
     min-height: 240px;
     box-sizing: border-box;
     resize: vertical;
-}
-
-.wip-keyword-tools {
-    padding-top: 2px;
 }
 
 .wip-busy {

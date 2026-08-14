@@ -1611,9 +1611,11 @@ function ensureContentTranslationTools(entry, panel, contentBlock) {
 }
 
 function ensureKeywordTranslationTools(entry, panel, keywordsBlock) {
-    if (!entry || !panel || !keywordsBlock || panel.querySelector(':scope > .wip-keyword-tools')) return;
+    if (!entry || !panel || !keywordsBlock || keywordsBlock.querySelector('.wip-keyword-tools')) return;
 
-    const tools = createElement('div', 'wip-keyword-tools');
+    panel.querySelector(':scope > .wip-keyword-tools')?.remove();
+
+    const tools = createElement('span', 'wip-keyword-tools');
     const translateButton = createEntryIconAction('fa-language', '키워드 번역', 'wip-keyword-translate-button', event => {
         event?.preventDefault?.();
         event?.stopPropagation?.();
@@ -1646,7 +1648,15 @@ function ensureKeywordTranslationTools(entry, panel, keywordsBlock) {
         });
     });
     tools.append(translateButton, recommendButton);
-    keywordsBlock.insertAdjacentElement('beforebegin', tools);
+
+    const primaryLabel = keywordsBlock.querySelector(':scope .keyprimary > small.textAlignCenter:not(.displayNone)')
+        || keywordsBlock.querySelector(':scope .keyprimary > small.textAlignCenter')
+        || keywordsBlock.querySelector(':scope small.textAlignCenter');
+    if (primaryLabel) {
+        primaryLabel.append(tools);
+    } else {
+        keywordsBlock.prepend(tools);
+    }
 }
 
 function getEntryPanel(edit, tabId) {
