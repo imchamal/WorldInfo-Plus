@@ -18,6 +18,7 @@ function createElement(tag, className = '', text = '') {
 
 function getSelectedBookName() {
     const select = document.querySelector('#world_editor_select');
+    if (!select || !select.value) return '';
     const selected = select?.selectedOptions?.[0];
     const name = selected?.textContent?.trim();
     return name || '';
@@ -348,7 +349,8 @@ function mount() {
     if (document.querySelector('#worldinfo-plus-root')) return;
 
     const worldInfoPanel = document.querySelector('#WorldInfo');
-    if (!worldInfoPanel) {
+    const entriesList = document.querySelector('#world_popup_entries_list');
+    if (!worldInfoPanel || !entriesList || !worldInfoPanel.contains(entriesList)) {
         setTimeout(mount, 500);
         return;
     }
@@ -358,15 +360,8 @@ function mount() {
     root.append(renderToolbar(), createElement('div', 'wip-folder-list'));
 
     const editorSelect = document.querySelector('#world_editor_select');
-    const anchor = editorSelect && worldInfoPanel.contains(editorSelect)
-        ? editorSelect.closest('.range-block')
-        : null;
-
-    if (anchor) {
-        anchor.insertAdjacentElement('afterend', root);
-    } else {
-        worldInfoPanel.prepend(root);
-    }
+    entriesList.insertAdjacentElement('beforebegin', root);
+    console.debug('[WorldInfo Plus] Mounted before #world_popup_entries_list');
 
     editorSelect?.addEventListener('change', loadSelectedBook);
     loadSelectedBook();
