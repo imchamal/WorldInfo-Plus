@@ -69,8 +69,16 @@ function setStatus(message) {
     root.querySelector('.wip-status').textContent = message;
 }
 
+function isCurrentBookSelected() {
+    return !!currentData && !!currentBookName && currentBookName === getSelectedBookName();
+}
+
 async function saveCurrentData() {
-    if (!currentBookName || !currentData || isSaving) return;
+    if (!isCurrentBookSelected() || isSaving) {
+        scheduleLoadSelectedBook();
+        return;
+    }
+
     isSaving = true;
     setStatus('Saving...');
 
@@ -86,16 +94,25 @@ async function saveCurrentData() {
 }
 
 async function loadSelectedBook() {
-    currentBookName = getSelectedBookName();
+    const requestedBookName = getSelectedBookName();
 
-    if (!currentBookName) {
+    if (!requestedBookName) {
+        currentBookName = '';
         currentData = null;
         renderEmpty('Select a lorebook in World Info first.');
         return;
     }
 
     setStatus('Loading...');
-    currentData = await loadWorldInfo(currentBookName);
+    const loadedData = await loadWorldInfo(requestedBookName);
+
+    if (getSelectedBookName() !== requestedBookName) {
+        scheduleLoadSelectedBook();
+        return;
+    }
+
+    currentBookName = requestedBookName;
+    currentData = loadedData;
 
     if (!currentData) {
         renderEmpty('Could not load this lorebook.');
@@ -278,7 +295,10 @@ function renderFolder(folder, entries, isUnfiled = false) {
 }
 
 function syncFromDom() {
-    if (!currentData) return;
+    if (!isCurrentBookSelected()) {
+        scheduleLoadSelectedBook();
+        return;
+    }
 
     const entriesList = getEntriesList();
     if (!entriesList) return;
@@ -365,6 +385,11 @@ function renderData() {
         return;
     }
 
+    if (!isCurrentBookSelected()) {
+        scheduleLoadSelectedBook();
+        return;
+    }
+
     const renderedEntries = collectRenderedEntries(entriesList);
     if (!renderedEntries.length) return;
 
@@ -418,7 +443,7 @@ function observeEntriesList(entriesList) {
     entriesObserver?.disconnect();
     entriesObserver = new MutationObserver(() => {
         if (isOrganizing) return;
-        if (!currentData) {
+        if (!isCurrentBookSelected()) {
             scheduleLoadSelectedBook();
             return;
         }
