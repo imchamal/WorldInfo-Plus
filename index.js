@@ -495,10 +495,14 @@ function showFolderManageDialog(initialTargetFolderId) {
 
         const updateSelectAllState = () => {
             const checkedCount = entryCheckboxes.filter(checkbox => checkbox.checked).length;
+            const movableCheckedCount = entryCheckboxes
+                .filter(checkbox => checkbox.checked)
+                .filter(checkbox => checkbox.dataset.folderId !== targetSelect.value)
+                .length;
             selectAllCheckbox.disabled = !entryCheckboxes.length;
             selectAllCheckbox.checked = !!entryCheckboxes.length && checkedCount === entryCheckboxes.length;
             selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < entryCheckboxes.length;
-            moveButton.disabled = checkedCount === 0 || !targetSelect.value;
+            moveButton.disabled = movableCheckedCount === 0 || !targetSelect.value;
         };
 
         const fillTargetOptions = () => {
@@ -536,12 +540,10 @@ function showFolderManageDialog(initialTargetFolderId) {
         };
 
         const renderEntryList = () => {
-            const targetFolderId = targetSelect.value || UNFILED_ID;
             const filterFolderId = filterSelect.value || '__all';
             const entries = Object.values(currentData.entries ?? {})
                 .filter(entry => {
                     const currentFolderId = getEntryFolderId(entry);
-                    if (currentFolderId === targetFolderId) return false;
                     if (filterFolderId !== '__all' && currentFolderId !== filterFolderId) return false;
                     return entryMatchesSearch(entry);
                 })
@@ -558,10 +560,10 @@ function showFolderManageDialog(initialTargetFolderId) {
 
             entryCheckboxes = [];
             list.replaceChildren();
-            summary.textContent = `${getFolderDisplayName(store, targetFolderId)}로 이동할 수 있는 항목 ${entries.length}개`;
+            summary.textContent = `표시 항목 ${entries.length}개`;
 
             if (!entries.length) {
-                list.append(createElement('div', 'wip-dialog-empty', '이 조건에 맞는 이동 가능 항목이 없습니다.'));
+                list.append(createElement('div', 'wip-dialog-empty', '이 조건에 맞는 항목이 없습니다.'));
                 updateSelectAllState();
                 return;
             }
@@ -573,6 +575,7 @@ function showFolderManageDialog(initialTargetFolderId) {
                 const checkbox = createElement('input');
                 checkbox.type = 'checkbox';
                 checkbox.value = uid;
+                checkbox.dataset.folderId = getEntryFolderId(entry);
                 entryCheckboxes.push(checkbox);
 
                 const text = createElement('span', 'wip-dialog-entry-text');
@@ -608,7 +611,7 @@ function showFolderManageDialog(initialTargetFolderId) {
             });
         }
 
-        targetSelect.addEventListener('change', renderEntryList);
+        targetSelect.addEventListener('change', updateSelectAllState);
         filterSelect.addEventListener('change', renderEntryList);
         searchInput.addEventListener('input', renderEntryList);
 
@@ -633,14 +636,14 @@ function showFolderManageDialog(initialTargetFolderId) {
         });
 
         document.addEventListener('keydown', onKeyDown);
-        dialog.append(title, targetRow, filterRow, searchInput, selectAllRow, list, footer);
+        dialog.append(title, filterRow, searchInput, selectAllRow, list, targetRow, footer);
         overlay.append(dialog);
         (document.querySelector('#WorldInfo') || document.body).append(overlay);
 
         fillTargetOptions();
         fillFilterOptions();
         renderEntryList();
-        targetSelect.focus();
+        filterSelect.focus();
     });
 }
 
@@ -716,7 +719,7 @@ function installNativeToolbarButton() {
 
     const manageFoldersButton = createIconButton(
         'worldinfo_plus_manage_folders',
-        'fa-list-check',
+        'fa-folder-tree',
         '폴더 항목 관리',
         () => manageFolderEntries(),
     );
@@ -746,7 +749,14 @@ async function moveEntriesToFolder(uids, targetFolderId) {
     const store = ensureStore(currentData);
     const validFolderIds = new Set(store.folders.map(folder => folder.id));
     const normalizedTargetFolderId = validFolderIds.has(targetFolderId) ? targetFolderId : UNFILED_ID;
-    const movingUidSet = new Set(normalizedUids);
+    const getStoredFolderId = uid => {
+        const folderId = store.entryFolders[uid];
+        return folderId && validFolderIds.has(folderId) ? folderId : UNFILED_ID;
+    };
+    const movableUids = normalizedUids.filter(uid => getStoredFolderId(uid) !== normalizedTargetFolderId);
+    if (!movableUids.length) return;
+
+    const movingUidSet = new Set(movableUids);
 
     for (const folderId of Object.keys(store.entryOrder)) {
         store.entryOrder[folderId] = store.entryOrder[folderId]
@@ -754,20 +764,20 @@ async function moveEntriesToFolder(uids, targetFolderId) {
     }
 
     if (normalizedTargetFolderId === UNFILED_ID) {
-        for (const uid of normalizedUids) {
+        for (const uid of movableUids) {
             delete store.entryFolders[uid];
         }
-        store.entryOrder[UNFILED_ID].push(...normalizedUids);
+        store.entryOrder[UNFILED_ID].push(...movableUids);
     } else {
         store.entryOrder[normalizedTargetFolderId] = Array.isArray(store.entryOrder[normalizedTargetFolderId])
             ? store.entryOrder[normalizedTargetFolderId]
             : [];
 
-        for (const uid of normalizedUids) {
+        for (const uid of movableUids) {
             store.entryFolders[uid] = normalizedTargetFolderId;
         }
 
-        store.entryOrder[normalizedTargetFolderId].push(...normalizedUids);
+        store.entryOrder[normalizedTargetFolderId].push(...movableUids);
     }
 
     renderData();
