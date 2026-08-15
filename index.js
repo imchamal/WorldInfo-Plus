@@ -35,6 +35,7 @@ let isSaving = false;
 let isOrganizing = false;
 let organizeTimer = null;
 let loadTimer = null;
+let entryEnhancementTimer = null;
 let entriesObserver = null;
 let entryMoveMenu = null;
 let settingsProfileSelect = null;
@@ -1610,10 +1611,31 @@ function ensureContentTranslationTools(entry, panel, contentBlock) {
     });
 }
 
+function getPrimaryKeywordLabel(keywordsBlock) {
+    return keywordsBlock.querySelector(':scope .keyprimary > small.textAlignCenter:not(.displayNone)')
+        || keywordsBlock.querySelector(':scope .keyprimary > small.textAlignCenter')
+        || keywordsBlock.querySelector(':scope small.textAlignCenter');
+}
+
+function placeKeywordTools(keywordsBlock, tools) {
+    const primaryLabel = getPrimaryKeywordLabel(keywordsBlock);
+    if (primaryLabel) {
+        primaryLabel.append(tools);
+    } else {
+        keywordsBlock.prepend(tools);
+    }
+}
+
 function ensureKeywordTranslationTools(entry, panel, keywordsBlock) {
-    if (!entry || !panel || !keywordsBlock || keywordsBlock.querySelector('.wip-keyword-tools')) return;
+    if (!entry || !panel || !keywordsBlock) return;
 
     panel.querySelector(':scope > .wip-keyword-tools')?.remove();
+
+    const existingTools = keywordsBlock.querySelector('.wip-keyword-tools');
+    if (existingTools) {
+        placeKeywordTools(keywordsBlock, existingTools);
+        return;
+    }
 
     const tools = createElement('span', 'wip-keyword-tools');
     const translateButton = createEntryIconAction('fa-language', '키워드 번역', 'wip-keyword-translate-button', event => {
@@ -1648,15 +1670,7 @@ function ensureKeywordTranslationTools(entry, panel, keywordsBlock) {
         });
     });
     tools.append(translateButton, recommendButton);
-
-    const primaryLabel = keywordsBlock.querySelector(':scope .keyprimary > small.textAlignCenter:not(.displayNone)')
-        || keywordsBlock.querySelector(':scope .keyprimary > small.textAlignCenter')
-        || keywordsBlock.querySelector(':scope small.textAlignCenter');
-    if (primaryLabel) {
-        primaryLabel.append(tools);
-    } else {
-        keywordsBlock.prepend(tools);
-    }
+    placeKeywordTools(keywordsBlock, tools);
 }
 
 function getEntryPanel(edit, tabId) {
@@ -1959,11 +1973,45 @@ function nodeContainsEntryEdit(node) {
         && (node.matches?.('.world_entry_edit') || node.querySelector?.('.world_entry_edit'));
 }
 
+function nodeTouchesKeywordTools(node) {
+    return node.nodeType === Node.ELEMENT_NODE
+        && (
+            node.matches?.('[name="keywordsAndLogicBlock"], .wip-keyword-tools, .keyprimary, .keysecondary')
+            || node.querySelector?.('[name="keywordsAndLogicBlock"], .wip-keyword-tools, .keyprimary, .keysecondary')
+        );
+}
+
+function mutationTouchesKeywordTools(mutation) {
+    const target = mutation.target;
+    if (target.nodeType === Node.ELEMENT_NODE && target.closest?.('[name="keywordsAndLogicBlock"]')) {
+        return true;
+    }
+
+    return [...mutation.addedNodes, ...mutation.removedNodes].some(nodeTouchesKeywordTools);
+}
+
 function ensureEntryTabsInList(entriesList) {
     for (const entry of collectRenderedEntries(entriesList)) {
         bindEntryTabOpenHandler(entry);
         ensureEntryTabs(entry);
     }
+}
+
+function scheduleEnsureEntryEnhancementsInList(entriesList, delay = 50) {
+    clearTimeout(entryEnhancementTimer);
+    entryEnhancementTimer = setTimeout(() => {
+        if (isOrganizing || !isCurrentBookSelected()) return;
+
+        for (const entry of collectRenderedEntries(entriesList)) {
+            const edit = entry.querySelector(':scope .world_entry_edit[data-wip-tabs="true"]');
+            if (edit) {
+                ensureEntryEnhancements(entry, edit);
+            } else {
+                bindEntryTabOpenHandler(entry);
+                ensureEntryTabs(entry);
+            }
+        }
+    }, delay);
 }
 
 function collectRenderedEntries(entriesList) {
@@ -2293,9 +2341,14 @@ function observeEntriesList(entriesList) {
 
         const hasEntryListChange = mutations.some(mutation => mutation.target === entriesList);
         const hasEntryEditChange = mutations.some(mutation => Array.from(mutation.addedNodes).some(nodeContainsEntryEdit));
+        const hasKeywordToolsChange = mutations.some(mutationTouchesKeywordTools);
 
         if (hasEntryEditChange) {
             ensureEntryTabsInList(entriesList);
+        }
+
+        if (hasKeywordToolsChange) {
+            scheduleEnsureEntryEnhancementsInList(entriesList);
         }
 
         if (hasEntryListChange) {
