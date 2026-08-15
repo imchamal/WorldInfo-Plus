@@ -446,6 +446,7 @@
 
 .wip-content-translation-grid.wip-content-translation-active {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
 }
 
 .wip-content-translation-pane {
@@ -453,6 +454,22 @@
     min-width: 0;
     flex-direction: column;
     gap: 4px;
+}
+
+.wip-content-translation-active .wip-content-original-pane [name="contentAndCharFilterBlock"] label > small > .flex-container.justifySpaceBetween {
+    min-width: 0;
+    gap: 6px;
+    flex-wrap: wrap !important;
+}
+
+.wip-content-translation-active .wip-content-original-pane [name="contentAndCharFilterBlock"] label > small > .flex-container.justifySpaceBetween > span {
+    min-width: 0;
+}
+
+.wip-content-translation-active .wip-content-original-pane [name="contentAndCharFilterBlock"] label > small > .flex-container.justifySpaceBetween > span:nth-child(2) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .wip-content-result-pane[hidden] {

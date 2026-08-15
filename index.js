@@ -1679,13 +1679,18 @@ function getEntryPanel(edit, tabId) {
 
 function ensureEntryEnhancements(entry, edit) {
     const contentPanel = getEntryPanel(edit, 'content');
-    const activationPanel = getEntryPanel(edit, 'activation');
     const contentBlock = contentPanel?.querySelector('[name="contentAndCharFilterBlock"]')
         || edit?.querySelector('[name="contentAndCharFilterBlock"]');
+
+    ensureContentTranslationTools(entry, contentPanel, contentBlock);
+    ensureEntryKeywordEnhancements(entry, edit);
+}
+
+function ensureEntryKeywordEnhancements(entry, edit) {
+    const activationPanel = getEntryPanel(edit, 'activation');
     const keywordsBlock = activationPanel?.querySelector('[name="keywordsAndLogicBlock"]')
         || edit?.querySelector('[name="keywordsAndLogicBlock"]');
 
-    ensureContentTranslationTools(entry, contentPanel, contentBlock);
     ensureKeywordTranslationTools(entry, activationPanel, keywordsBlock);
 }
 
@@ -1997,7 +2002,7 @@ function ensureEntryTabsInList(entriesList) {
     }
 }
 
-function scheduleEnsureEntryEnhancementsInList(entriesList, delay = 50) {
+function scheduleEnsureEntryKeywordEnhancementsInList(entriesList, delay = 50) {
     clearTimeout(entryEnhancementTimer);
     entryEnhancementTimer = setTimeout(() => {
         if (isOrganizing || !isCurrentBookSelected()) return;
@@ -2005,7 +2010,7 @@ function scheduleEnsureEntryEnhancementsInList(entriesList, delay = 50) {
         for (const entry of collectRenderedEntries(entriesList)) {
             const edit = entry.querySelector(':scope .world_entry_edit[data-wip-tabs="true"]');
             if (edit) {
-                ensureEntryEnhancements(entry, edit);
+                ensureEntryKeywordEnhancements(entry, edit);
             } else {
                 bindEntryTabOpenHandler(entry);
                 ensureEntryTabs(entry);
@@ -2348,7 +2353,7 @@ function observeEntriesList(entriesList) {
         }
 
         if (hasKeywordToolsChange) {
-            scheduleEnsureEntryEnhancementsInList(entriesList);
+            scheduleEnsureEntryKeywordEnhancementsInList(entriesList);
         }
 
         if (hasEntryListChange) {
